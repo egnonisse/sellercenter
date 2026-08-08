@@ -10,29 +10,47 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { approveProductAction, rejectProductAction } from "./actions";
+import { approveProductAction, rejectProductAction, syncNowAction } from "./actions";
 
 export default async function AdminProductsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "SUPER_ADMIN") redirect("/");
 
-  const products = await prisma.product.findMany({
-    where: { status: "PENDING_QC" },
-    orderBy: { updatedAt: "asc" },
-    include: {
-      shop: { select: { name: true } },
-      category: { select: { name: true } },
-    },
-  });
+  const [products, pendingSync] = await Promise.all([
+    prisma.product.findMany({
+      where: { status: "PENDING_QC" },
+      orderBy: { updatedAt: "asc" },
+      include: {
+        shop: { select: { name: true } },
+        category: { select: { name: true } },
+      },
+    }),
+    prisma.product.count({
+      where: { syncStatus: { in: ["PENDING", "ERROR"] }, status: { in: ["ACTIVE", "DELISTED"] } },
+    }),
+  ]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Produits à valider</h1>
-        <p className="text-sm text-zinc-500">
-          {products.length} produit(s) en attente de contrôle qualité
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Produits à valider</h1>
+          <p className="text-sm text-zinc-500">
+            {products.length} produit(s) en attente de contrôle qualité
+            {pendingSync > 0 && ` · ${pendingSync} en attente de sync WooCommerce`}
+          </p>
+        </div>
+        <form
+          action={async () => {
+            "use server";
+            await syncNowAction();
+          }}
+        >
+          <Button type="submit" variant="outline" size="sm">
+            Synchroniser maintenant
+          </Button>
+        </form>
       </div>
 
       <div className="rounded-md border">

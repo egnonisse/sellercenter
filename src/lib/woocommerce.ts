@@ -48,3 +48,16 @@ export async function wooFetch<T>(fn: (api: WooCommerceRestApi) => Promise<{ dat
 export async function wooGetCategories(): Promise<unknown[]> {
   return wooFetch((api) => api.get("products/categories", { per_page: 100, page: 1 }));
 }
+
+// Création d'un produit sur WooCommerce → retourne l'objet créé (avec id)
+export async function wooCreateProduct(data: Record<string, unknown>): Promise<{ id: number }> {
+  return wooFetch((api) => api.post("products", data));
+}
+
+// Mise à jour d'un produit WooCommerce par son id
+export async function wooUpdateProduct(
+  id: number,
+  data: Record<string, unknown>,
+): Promise<{ id: number }> {
+  return wooFetch((api) => api.put(`products/${id}`, data));
+}
