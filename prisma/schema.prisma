@@ -114,7 +114,7 @@ model Category {
   children       Category[] @relation("CategoryTree")
   name           String
   slug           String     @unique
-  wooId          Int?       // ID WooCommerce
+  wooId          Int?       @unique // ID WooCommerce
   commissionRate Float?     // % commission, nullable : hérite du parent, sinon défaut global
   createdAt      DateTime   @default(now())
   products       Product[]
@@ -124,7 +124,7 @@ model Product {
   id              String        @id @default(cuid())
   shopId          String
   shop            Shop          @relation(fields: [shopId], references: [id])
-  wooId           Int?          // ID WooCommerce (null si pas encore synchronisé)
+  wooId           Int?          @unique // ID WooCommerce (null si pas encore synchronisé)
   name            String
   slug            String        @unique
   description     String?
