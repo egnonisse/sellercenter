@@ -12,6 +12,8 @@ const NAV_ITEMS = [
   { label: "Paramètres", href: "/settings", soon: true },
 ];
 
+const ADMIN_ITEMS = [{ label: "Vendeurs", href: "/admin/sellers" }];
+
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -47,6 +49,22 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 {item.label}
               </Link>
             ),
+          )}
+          {session.user.role === "SUPER_ADMIN" && (
+            <div className="pt-3">
+              <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
+                Administration
+              </p>
+              {ADMIN_ITEMS.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
           )}
         </nav>
         <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
