@@ -1,0 +1,1 @@
+Le Seller Center sera déployé sur la plateforme Vercel via un pipeline CI/CD (Intégration et Déploiement Continus) relié au dépôt GitHub. Ce choix est motivé par la compatibilité native avec le framework Next.js, la gestion automatique des certificats SSL, et l'optimisation du temps de réponse (TTFB) pour les utilisateurs finaux.

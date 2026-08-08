@@ -1,0 +1,283 @@
+// SellerCenter Zariamall — schéma de données
+// Référence : CONCEPTION.md (v1.1)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ===================== Énumérations =====================
+
+enum Role {
+  SUPER_ADMIN // LEO : accès total
+  SHOP_ADMIN // vendeur : sa boutique complète
+  SHOP_MANAGER // employé vendeur : produits + commandes, pas les finances
+}
+
+enum SellerStatus {
+  PENDING // inscription reçue, en attente de validation LEO
+  ACTIVE
+  SUSPENDED
+}
+
+enum ShopStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_QC // en attente de contrôle qualité (LEO)
+  ACTIVE
+  REJECTED
+  DELISTED
+}
+
+enum OrderStatus {
+  PENDING
+  READY_TO_SHIP // prêt à expédier (pattern Jumia)
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum SettlementStatus {
+  OPEN
+  PROCESSING
+  PAID
+  FAILED
+}
+
+enum SyncStatus {
+  PENDING
+  SYNCED
+  ERROR
+}
+
+// ===================== Vendeurs & Boutiques =====================
+
+model Seller {
+  id        String       @id @default(cuid())
+  name      String
+  email     String       @unique
+  phone     String
+  country   String       @default("CI")
+  status    SellerStatus @default(PENDING)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  shops     Shop[]
+}
+
+model Shop {
+  id               String           @id @default(cuid())
+  sellerId         String
+  seller           Seller           @relation(fields: [sellerId], references: [id])
+  name             String
+  slug             String           @unique
+  logoUrl          String?
+  description      String?
+  status           ShopStatus       @default(PENDING)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  users            User[]
+  products         Product[]
+  orders           Order[]
+  promotions       Promotion[]
+  settlements      Settlement[]
+  apiApplications  ApiApplication[]
+}
+
+model User {
+  id           String               @id @default(cuid())
+  email        String               @unique
+  passwordHash String
+  role         Role
+  shopId       String?              // null pour SUPER_ADMIN
+  shop         Shop?                @relation(fields: [shopId], references: [id])
+  status       String               @default("ACTIVE")
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  orderHistory OrderStatusHistory[]
+}
+
+// ===================== Catalogue =====================
+
+model Category {
+  id             String     @id @default(cuid())
+  parentId       String?
+  parent         Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children       Category[] @relation("CategoryTree")
+  name           String
+  slug           String     @unique
+  wooId          Int?       // ID WooCommerce
+  commissionRate Float?     // % commission, nullable : hérite du parent, sinon défaut global
+  createdAt      DateTime   @default(now())
+  products       Product[]
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  shopId          String
+  shop            Shop          @relation(fields: [shopId], references: [id])
+  wooId           Int?          // ID WooCommerce (null si pas encore synchronisé)
+  name            String
+  slug            String        @unique
+  description     String?
+  categoryId      String
+  category        Category      @relation(fields: [categoryId], references: [id])
+  brand           String?
+  price           Decimal       @db.Decimal(10, 2)
+  compareAtPrice  Decimal?      @db.Decimal(10, 2) // ancien prix (affiché barré)
+  stockQty        Int           @default(0)
+  status          ProductStatus @default(DRAFT)
+  qcNote          String?
+  images          Json?         // [{url, position}]
+  attributes      Json?         // {marque, couleur, garantie...}
+  syncStatus      SyncStatus    @default(PENDING)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  orderItems      OrderItem[]
+  promotionProducts PromotionProduct[]
+}
+
+// ===================== Commandes =====================
+
+model Order {
+  id            String              @id @default(cuid())
+  wooId         Int?                @unique // ID WooCommerce
+  shopId        String
+  shop          Shop                @relation(fields: [shopId], references: [id])
+  customerName  String
+  phone         String
+  address       String?
+  itemsTotal    Decimal             @db.Decimal(10, 2)
+  shippingFee   Decimal             @db.Decimal(10, 2) @default(0)
+  total         Decimal             @db.Decimal(10, 2)
+  status        OrderStatus         @default(PENDING)
+  paymentMethod String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  items         OrderItem[]
+  history       OrderStatusHistory[]
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  name      String
+  qty       Int
+  unitPrice Decimal  @db.Decimal(10, 2)
+  total     Decimal  @db.Decimal(10, 2)
+  settlementLines SettlementLine[]
+
+  @@index([orderId])
+}
+
+model OrderStatusHistory {
+  id          String   @id @default(cuid())
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  from        String?
+  to          String
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// ===================== Promotions =====================
+
+model Promotion {
+  id        String            @id @default(cuid())
+  shopId    String
+  shop      Shop              @relation(fields: [shopId], references: [id])
+  name      String
+  type      String            // PERCENTAGE | FIXED
+  value     Decimal           @db.Decimal(10, 2)
+  startAt   DateTime
+  endAt     DateTime
+  status    String            @default("DRAFT") // DRAFT | ACTIVE | ENDED
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  products  PromotionProduct[]
+}
+
+model PromotionProduct {
+  id          String    @id @default(cuid())
+  promotionId String
+  promotion   Promotion @relation(fields: [promotionId], references: [id])
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@unique([promotionId, productId])
+}
+
+// ===================== Finances =====================
+
+model Settlement {
+  id          String           @id @default(cuid())
+  shopId      String
+  shop        Shop             @relation(fields: [shopId], references: [id])
+  periodStart DateTime
+  periodEnd   DateTime
+  grossSales  Decimal          @db.Decimal(10, 2)
+  commission  Decimal          @db.Decimal(10, 2) // calculée par catégorie (commissionRate)
+  netPayable  Decimal          @db.Decimal(10, 2)
+  status      SettlementStatus @default(OPEN)
+  payoutRef   String?          // référence du paiement Mobile Money
+  paidAt      DateTime?
+  createdAt   DateTime         @default(now())
+  lines       SettlementLine[]
+}
+
+model SettlementLine {
+  id           String     @id @default(cuid())
+  settlementId String
+  settlement   Settlement @relation(fields: [settlementId], references: [id])
+  orderItemId  String
+  orderItem    OrderItem  @relation(fields: [orderItemId], references: [id])
+  gross        Decimal    @db.Decimal(10, 2)
+  commission   Decimal    @db.Decimal(10, 2)
+  net          Decimal    @db.Decimal(10, 2)
+
+  @@unique([settlementId, orderItemId])
+}
+
+// ===================== Infrastructure =====================
+
+model PaymentProvider {
+  id        String   @id @default(cuid())
+  name      String // WAVE | ORANGE | MTN
+  enabled   Boolean  @default(false)
+  config    Json?    // {apiKey, secret} — chiffré au stockage
+  createdAt DateTime @default(now())
+}
+
+model ApiApplication {
+  id         String    @id @default(cuid())
+  shopId     String
+  shop       Shop      @relation(fields: [shopId], references: [id])
+  name       String
+  tokenHash  String // token API pour intégrations tierces (pattern Jumia)
+  scopes     String    @default("products.read,orders.read")
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+}
+
+// Paramètres globaux (singleton id="global")
+model Settings {
+  id                   String  @id @default("global")
+  defaultCommissionRate Float  @default(10)
+  signupOpen           Boolean @default(true)
+}
