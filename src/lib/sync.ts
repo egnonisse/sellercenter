@@ -11,8 +11,12 @@ import {
 function toWooPayload(product: {
   name: string;
   description: string | null;
+  sku: string | null;
+  ean: string | null;
   price: { toString(): string };
   compareAtPrice: { toString(): string } | null;
+  saleStartDate: Date | null;
+  saleEndDate: Date | null;
   stockQty: number;
   status: string;
   images: unknown;
@@ -24,14 +28,24 @@ function toWooPayload(product: {
     status: product.status === "DELISTED" ? "private" : "publish",
     name: product.name,
     description: product.description ?? "",
+    sku: product.sku ?? "",
     regular_price: hasCompare ? String(product.compareAtPrice) : String(product.price),
     sale_price: hasCompare ? String(product.price) : "",
+    ...(hasCompare && product.saleStartDate
+      ? { date_on_sale_from: product.saleStartDate.toISOString().slice(0, 10) }
+      : {}),
+    ...(hasCompare && product.saleEndDate
+      ? { date_on_sale_to: product.saleEndDate.toISOString().slice(0, 10) }
+      : {}),
     manage_stock: true,
     stock_quantity: product.stockQty,
     images: Array.isArray(product.images)
       ? (product.images as { url: string }[]).map((i) => ({ src: i.url }))
       : [],
-    meta_data: [{ key: "_zariamall_shop_id", value: product.shopId }],
+    meta_data: [
+      { key: "_zariamall_shop_id", value: product.shopId },
+      ...(product.ean ? [{ key: "_zariamall_ean", value: product.ean }] : []),
+    ],
   };
 }
 

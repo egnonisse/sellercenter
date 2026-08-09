@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { loadCategoryOptions } from "@/lib/products";
+import { listBrands } from "@/lib/brands";
 import { ProductForm } from "@/components/product-form";
 import { createProductAction } from "../actions";
 
@@ -9,7 +10,7 @@ export default async function NewProductPage() {
   if (!session?.user) redirect("/login");
   if (!session.user.shopId) redirect("/products");
 
-  const categories = await loadCategoryOptions();
+  const [categories, brands] = await Promise.all([loadCategoryOptions(), listBrands()]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -21,6 +22,7 @@ export default async function NewProductPage() {
       </div>
       <ProductForm
         categories={categories}
+        brands={brands}
         action={createProductAction}
         submitLabel="Créer le produit"
       />

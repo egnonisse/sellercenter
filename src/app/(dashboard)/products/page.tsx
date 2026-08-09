@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Actif",
   REJECTED: "Rejeté",
   DELISTED: "Retiré",
+  DELETION_PENDING: "Suppression en attente",
 };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
@@ -28,6 +29,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   PENDING_QC: "secondary",
   REJECTED: "outline",
   DELISTED: "outline",
+  DELETION_PENDING: "outline",
   DRAFT: "secondary",
 };
 
@@ -38,6 +40,7 @@ const STATUS_FILTERS = [
   { value: "ACTIVE", label: "Actif" },
   { value: "REJECTED", label: "Rejeté" },
   { value: "DELISTED", label: "Retiré" },
+  { value: "DELETION_PENDING", label: "Suppression en attente" },
 ];
 
 export default async function ProductsPage({
@@ -109,6 +112,24 @@ export default async function ProductsPage({
         )}
       </div>
 
+      {/* KPI produits (pattern Jumia getProductKpis) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Total produits", value: products.length, accent: false },
+          { label: "Actifs", value: countByStatus.ACTIVE ?? 0, accent: true },
+          { label: "En validation", value: countByStatus.PENDING_QC ?? 0, accent: false },
+          { label: "Rejetés", value: countByStatus.REJECTED ?? 0, accent: false },
+        ].map((kpi) => (
+          <div
+            key={kpi.label}
+            className={`rounded-md border p-3 ${kpi.accent ? "border-primary/40 bg-primary/5" : ""}`}
+          >
+            <div className={`text-2xl font-semibold ${kpi.accent ? "text-primary" : ""}`}>{kpi.value}</div>
+            <div className="text-xs text-muted-foreground">{kpi.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Filtres de statut (pills) */}
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => {
@@ -173,6 +194,7 @@ export default async function ProductsPage({
             <TableRow>
               {!isAdmin && <TableHead className="w-10" />}
               <TableHead>Nom</TableHead>
+              <TableHead>SKU</TableHead>
               <TableHead>Catégorie</TableHead>
               <TableHead>Prix (FCFA)</TableHead>
               <TableHead>Stock</TableHead>
@@ -183,7 +205,7 @@ export default async function ProductsPage({
           <TableBody>
             {products.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                   Aucun produit{status ? ` avec le statut « ${STATUS_LABEL[status] ?? status} »` : ""}
                   {q ? ` pour « ${q} »` : ""}.{" "}
                   {!isAdmin && (
@@ -215,6 +237,7 @@ export default async function ProductsPage({
                     <div className="text-[10px] text-amber-600">sync en attente</div>
                   )}
                 </TableCell>
+                <TableCell className="text-xs text-muted-foreground">{p.sku || "—"}</TableCell>
                 <TableCell>{p.category.name}</TableCell>
                 <TableCell>{Number(p.price).toLocaleString("fr-FR")}</TableCell>
                 <TableCell>{p.stockQty}</TableCell>
@@ -225,7 +248,7 @@ export default async function ProductsPage({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    {!isAdmin && p.status !== "DELISTED" && (
+                    {!isAdmin && p.status !== "DELISTED" && p.status !== "DELETION_PENDING" && (
                       <>
                         <Link href={`/products/${p.id}/edit`}>
                           <Button type="button" size="sm" variant="outline">

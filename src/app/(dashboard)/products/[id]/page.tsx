@@ -4,7 +4,12 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { submitProductAction, delistProductAction } from "../actions";
+import { DelistForm } from "@/components/delist-form";
+import {
+  submitProductAction,
+  requestDeletionAction,
+  delistProductWithReasonAction,
+} from "../actions";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Brouillon",
@@ -12,6 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Actif",
   REJECTED: "Rejeté",
   DELISTED: "Retiré",
+  DELETION_PENDING: "Suppression en attente",
 };
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
@@ -19,7 +25,21 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
   PENDING_QC: "secondary",
   REJECTED: "outline",
   DELISTED: "outline",
+  DELETION_PENDING: "outline",
   DRAFT: "secondary",
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  CREATED: "Créé",
+  SUBMITTED: "Soumis pour validation",
+  APPROVED: "Approuvé",
+  REJECTED: "Rejeté",
+  UPDATED: "Modifié",
+  DELISTED: "Retiré",
+  DELETION_REQUESTED: "Suppression demandée",
+  RESTORED: "Restauration",
+  DELETED: "Supprimé",
+  SYNCED: "Synchronisé",
 };
 
 export default async function ProductDetailPage({
@@ -37,6 +57,7 @@ export default async function ProductDetailPage({
     include: {
       category: true,
       shop: { select: { name: true, slug: true } },
+      history: { orderBy: { createdAt: "desc" }, take: 15 },
     },
   });
   if (!product) redirect("/products");
@@ -45,8 +66,10 @@ export default async function ProductDetailPage({
   const images = Array.isArray(product.images)
     ? (product.images as { url: string }[]).map((i) => i.url)
     : [];
+  const attrs = (product.attributes as { color?: string; size?: string; warranty?: string } | null) ?? {};
   const canSubmit = product.status === "DRAFT" || product.status === "REJECTED";
-  const canDelist = product.status === "ACTIVE";
+  const canEdit = product.status !== "DELISTED" && product.status !== "DELETION_PENDING";
+  const canRequestDeletion = product.status !== "DELETION_PENDING";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -57,56 +80,73 @@ export default async function ProductDetailPage({
             {product.shop.name} · {product.category.name}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-end gap-2">
           <Badge variant={STATUS_VARIANT[product.status] ?? "secondary"}>
             {STATUS_LABEL[product.status] ?? product.status}
           </Badge>
-          {!isAdmin && product.status !== "DELISTED" && (
-            <>
-              <Link href={`/products/${product.id}/edit`}>
-                <Button type="button" size="sm" variant="outline">
-                  Modifier
-                </Button>
-              </Link>
-              {canSubmit ? (
-                <form
-                  action={async () => {
-                    "use server";
-                    await submitProductAction(product.id);
-                  }}
-                >
-                  <Button type="submit" size="sm">
-                    Soumettre
-                  </Button>
-                </form>
-              ) : (
-                canDelist && (
-                  <form
-                    action={async () => {
-                      "use server";
-                      await delistProductAction(product.id);
-                    }}
-                  >
-                    <Button type="submit" size="sm" variant="outline">
-                      Retirer
-                    </Button>
-                  </form>
-                )
-              )}
-            </>
+          {!isAdmin && canEdit && (
+            <Link href={`/products/${product.id}/edit`}>
+              <Button type="button" size="sm" variant="outline">
+                Modifier
+              </Button>
+            </Link>
+          )}
+          {!isAdmin && canSubmit && (
+            <form
+              action={async () => {
+                "use server";
+                await submitProductAction(product.id);
+              }}
+            >
+              <Button type="submit" size="sm">
+                Soumettre
+              </Button>
+            </form>
+          )}
+          {!isAdmin && canRequestDeletion && product.status !== "DELISTED" && (
+            <form
+              action={async () => {
+                "use server";
+                await requestDeletionAction(product.id);
+              }}
+            >
+              <Button type="submit" size="sm" variant="outline" className="text-red-600">
+                Demander la suppression
+              </Button>
+            </form>
           )}
         </div>
       </div>
+
+      {product.status === "DELETION_PENDING" && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          Suppression demandée le{" "}
+          {product.deletionRequestedAt
+            ? new Date(product.deletionRequestedAt).toLocaleDateString("fr-FR")
+            : "—"}{" "}
+          — en attente de confirmation de l&apos;administrateur.
+        </div>
+      )}
+
+      {product.status === "REJECTED" && product.qcReason && (
+        <div className="rounded-md border border-red-300 bg-red-50 p-3 text-sm text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200">
+          <strong>Rejeté :</strong> {product.qcReason}
+          {product.qcNote && <span> — {product.qcNote}</span>}
+        </div>
+      )}
+
+      {product.status === "DELISTED" && product.delistReason && (
+        <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900">
+          <strong>Retiré :</strong> {product.delistReason}
+          {product.delistComment && <span> — {product.delistComment}</span>}
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {images.length > 0 ? (
           <div className="space-y-2">
             <div className="flex aspect-square items-center justify-center overflow-hidden rounded-md border bg-zinc-50 dark:bg-zinc-900">
-              <img
-                src={images[0]}
-                alt={product.name}
-                className="h-full w-full object-contain"
-              />
+              <img src={images[0]} alt={product.name} className="h-full w-full object-contain" />
             </div>
             {images.length > 1 && (
               <div className="flex gap-2">
@@ -143,7 +183,39 @@ export default async function ProductDetailPage({
             <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
               Stock : {product.stockQty} · Marque : {product.brand || "—"}
             </p>
+            {product.compareAtPrice && (product.saleStartDate || product.saleEndDate) && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Promo du {product.saleStartDate ? new Date(product.saleStartDate).toLocaleDateString("fr-FR") : "—"} au{" "}
+                {product.saleEndDate ? new Date(product.saleEndDate).toLocaleDateString("fr-FR") : "—"}
+              </p>
+            )}
           </div>
+
+          {(attrs.color || attrs.size || attrs.warranty) && (
+            <div className="rounded-md border p-4 text-sm">
+              <h2 className="mb-2 text-sm font-semibold">Caractéristiques</h2>
+              <dl className="space-y-1 text-zinc-600 dark:text-zinc-400">
+                {attrs.color && (
+                  <div className="flex justify-between">
+                    <dt>Couleur</dt>
+                    <dd>{attrs.color}</dd>
+                  </div>
+                )}
+                {attrs.size && (
+                  <div className="flex justify-between">
+                    <dt>Taille</dt>
+                    <dd>{attrs.size}</dd>
+                  </div>
+                )}
+                {attrs.warranty && (
+                  <div className="flex justify-between">
+                    <dt>Garantie</dt>
+                    <dd>{attrs.warranty}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
 
           {product.description && (
             <div className="rounded-md border p-4">
@@ -165,6 +237,14 @@ export default async function ProductDetailPage({
                 <dt>Catégorie</dt>
                 <dd>{product.category.name}</dd>
               </div>
+              <div className="flex justify-between">
+                <dt>SKU vendeur</dt>
+                <dd>{product.sku || "—"}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt>EAN / GTIN</dt>
+                <dd>{product.ean || "—"}</dd>
+              </div>
               {product.wooId && (
                 <div className="flex justify-between">
                   <dt>Shop public</dt>
@@ -183,15 +263,13 @@ export default async function ProductDetailPage({
               <div className="flex justify-between">
                 <dt>Synchronisation</dt>
                 <dd>
-                  {product.syncStatus === "SYNCED" ? "À jour" : product.syncStatus === "ERROR" ? "Échec" : "En attente"}
+                  {product.syncStatus === "SYNCED"
+                    ? "À jour"
+                    : product.syncStatus === "ERROR"
+                      ? "Échec"
+                      : "En attente"}
                 </dd>
               </div>
-              {product.qcNote && (
-                <div className="flex justify-between">
-                  <dt>Note QC</dt>
-                  <dd>{product.qcNote}</dd>
-                </div>
-              )}
               <div className="flex justify-between">
                 <dt>Créé le</dt>
                 <dd>{new Date(product.createdAt).toLocaleDateString("fr-FR")}</dd>
@@ -200,6 +278,35 @@ export default async function ProductDetailPage({
           </div>
         </div>
       </div>
+
+      {!isAdmin && product.status === "ACTIVE" && (
+        <details className="rounded-md border border-border p-3">
+          <summary className="cursor-pointer text-sm font-medium">Retirer du shop public (motivé)</summary>
+          <div className="mt-3">
+            <DelistForm productId={product.id} action={delistProductWithReasonAction} />
+          </div>
+        </details>
+      )}
+
+      {product.history.length > 0 && (
+        <div className="rounded-md border p-4">
+          <h2 className="mb-3 text-sm font-semibold">Historique</h2>
+          <ol className="space-y-2 text-sm">
+            {product.history.map((h) => (
+              <li key={h.id} className="flex items-baseline justify-between gap-3">
+                <span className="text-zinc-700 dark:text-zinc-300">
+                  {ACTION_LABEL[h.action] ?? h.action}
+                  {h.note && <span className="text-muted-foreground"> — {h.note}</span>}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {new Date(h.createdAt).toLocaleDateString("fr-FR")}{" "}
+                  {new Date(h.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }

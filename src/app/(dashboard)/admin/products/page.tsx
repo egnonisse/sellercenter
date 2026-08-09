@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -10,14 +11,21 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { approveProductAction, rejectProductAction, syncNowAction } from "./actions";
+import { RejectForm } from "@/components/reject-form";
+import {
+  approveProductAction,
+  rejectProductAction,
+  confirmDeletionAction,
+  restoreProductAction,
+  syncNowAction,
+} from "./actions";
 
 export default async function AdminProductsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
   if (session.user.role !== "SUPER_ADMIN") redirect("/");
 
-  const [products, pendingSync] = await Promise.all([
+  const [products, pendingSync, deletions] = await Promise.all([
     prisma.product.findMany({
       where: { status: "PENDING_QC" },
       orderBy: { updatedAt: "asc" },
@@ -29,10 +37,15 @@ export default async function AdminProductsPage() {
     prisma.product.count({
       where: { syncStatus: { in: ["PENDING", "ERROR"] }, status: { in: ["ACTIVE", "DELISTED"] } },
     }),
+    prisma.product.findMany({
+      where: { status: "DELETION_PENDING" },
+      orderBy: { deletionRequestedAt: "asc" },
+      include: { shop: { select: { name: true } } },
+    }),
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produits à valider</h1>
@@ -86,7 +99,7 @@ export default async function AdminProductsPage() {
                 <TableCell>{Number(p.price).toLocaleString("fr-FR")}</TableCell>
                 <TableCell>{p.stockQty}</TableCell>
                 <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-col items-end gap-2">
                     <form
                       action={async () => {
                         "use server";
@@ -97,16 +110,7 @@ export default async function AdminProductsPage() {
                         Approuver
                       </Button>
                     </form>
-                    <form
-                      action={async () => {
-                        "use server";
-                        await rejectProductAction(p.id, "Rejeté par l'administrateur");
-                      }}
-                    >
-                      <Button type="submit" size="sm" variant="outline">
-                        Rejeter
-                      </Button>
-                    </form>
+                    <RejectForm productId={p.id} action={rejectProductAction} />
                   </div>
                 </TableCell>
               </TableRow>
@@ -114,6 +118,64 @@ export default async function AdminProductsPage() {
           </TableBody>
         </Table>
       </div>
+
+      {deletions.length > 0 && (
+        <div>
+          <h2 className="mb-2 text-lg font-semibold tracking-tight">
+            Suppressions en attente{" "}
+            <Badge variant="outline">{deletions.length}</Badge>
+          </h2>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produit</TableHead>
+                  <TableHead>Boutique</TableHead>
+                  <TableHead>Demandé le</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deletions.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    <TableCell>{p.shop.name}</TableCell>
+                    <TableCell>
+                      {p.deletionRequestedAt
+                        ? new Date(p.deletionRequestedAt).toLocaleDateString("fr-FR")
+                        : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <form
+                          action={async () => {
+                            "use server";
+                            await restoreProductAction(p.id);
+                          }}
+                        >
+                          <Button type="submit" size="sm" variant="outline">
+                            Restaurer
+                          </Button>
+                        </form>
+                        <form
+                          action={async () => {
+                            "use server";
+                            await confirmDeletionAction(p.id);
+                          }}
+                        >
+                          <Button type="submit" size="sm" variant="outline" className="text-red-600">
+                            Supprimer définitivement
+                          </Button>
+                        </form>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

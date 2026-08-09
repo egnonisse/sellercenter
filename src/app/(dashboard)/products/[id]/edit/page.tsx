@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { loadCategoryOptions } from "@/lib/products";
+import { listBrands } from "@/lib/brands";
 import { ProductForm } from "@/components/product-form";
 import { updateProductAction } from "../../actions";
 
@@ -20,7 +21,8 @@ export default async function EditProductPage({
   });
   if (!product) redirect("/products");
 
-  const categories = await loadCategoryOptions();
+  const [categories, brands] = await Promise.all([loadCategoryOptions(), listBrands()]);
+  const attrs = (product.attributes as { color?: string; size?: string; warranty?: string } | null) ?? {};
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -32,16 +34,22 @@ export default async function EditProductPage({
       </div>
       <ProductForm
         categories={categories}
+        brands={brands}
         action={updateProductAction.bind(null, product.id)}
         initial={{
           name: product.name,
           description: product.description,
           categoryId: product.categoryId,
           brand: product.brand,
+          sku: product.sku,
+          ean: product.ean,
           price: String(product.price),
           compareAtPrice: product.compareAtPrice ? String(product.compareAtPrice) : null,
+          saleStartDate: product.saleStartDate ? product.saleStartDate.toISOString() : null,
+          saleEndDate: product.saleEndDate ? product.saleEndDate.toISOString() : null,
           stockQty: product.stockQty,
           images: product.images,
+          attributes: { color: attrs.color ?? null, size: attrs.size ?? null, warranty: attrs.warranty ?? null },
         }}
         submitLabel="Enregistrer les modifications"
       />

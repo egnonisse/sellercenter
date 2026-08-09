@@ -36,6 +36,7 @@ enum ProductStatus {
   ACTIVE
   REJECTED
   DELISTED
+  DELETION_PENDING // suppression demandée par le vendeur, en attente de confirmation admin (retention)
 }
 
 enum OrderStatus {
@@ -90,6 +91,7 @@ model Shop {
   promotions       Promotion[]
   settlements      Settlement[]
   apiApplications  ApiApplication[]
+  importHistory    ImportHistory[]
 }
 
 model User {
@@ -103,6 +105,7 @@ model User {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   orderHistory OrderStatusHistory[]
+  productHistory ProductHistory[]
 }
 
 // ===================== Catalogue =====================
@@ -125,25 +128,83 @@ model Product {
   shopId          String
   shop            Shop          @relation(fields: [shopId], references: [id])
   wooId           Int?          @unique // ID WooCommerce (null si pas encore synchronisé)
+  sku             String?       // SKU du vendeur (unique par boutique)
+  ean             String?       // EAN / GTIN (code-barres)
   name            String
   slug            String        @unique
   description     String?
   categoryId      String
   category        Category      @relation(fields: [categoryId], references: [id])
-  brand           String?
+  brand           String?       // nom de marque (texte, pour compatibilité sync/CSV)
+  brandId         String?       // référentiel marques (optionnel)
+  brandRef        Brand?        @relation(fields: [brandId], references: [id])
   price           Decimal       @db.Decimal(10, 2)
   compareAtPrice  Decimal?      @db.Decimal(10, 2) // ancien prix (affiché barré)
+  saleStartDate   DateTime?     // début de la période promo
+  saleEndDate     DateTime?     // fin de la période promo
   stockQty        Int           @default(0)
   status          ProductStatus @default(DRAFT)
-  qcNote          String?
+  qcNote          String?       // commentaire libre du QC
+  qcReason        String?       // raison structurée du rejet (REFUSE_REASONS)
+  delistReason    String?       // raison du retrait
+  delistComment   String?       // commentaire du retrait
+  deletionRequestedAt DateTime? // demande de suppression (retention)
   images          Json?         // [{url, position}]
-  attributes      Json?         // {marque, couleur, garantie...}
+  attributes      Json?         // {color, size, warranty...}
   syncStatus      SyncStatus    @default(PENDING)
   lastSyncedAt    DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   orderItems      OrderItem[]
   promotionProducts PromotionProduct[]
+  history         ProductHistory[]
+
+  @@unique([shopId, sku])
+  @@index([shopId, status])
+}
+
+// ===================== Référentiel marques =====================
+
+model Brand {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  wooId     Int?      // ID WooCommerce (si connu)
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+// ===================== Historique produit (pattern Jumia) =====================
+
+model ProductHistory {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  action      String   // CREATED | SUBMITTED | APPROVED | REJECTED | UPDATED | DELISTED | DELETION_REQUESTED | DELETED | SYNCED
+  from        String?
+  to          String?
+  note        String?
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ===================== Historique d'imports CSV (feeds) =====================
+
+model ImportHistory {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id])
+  type      String   // CREATION | UPDATE | STOCK | PRICE | STATUS
+  fileName  String
+  created   Int      @default(0)
+  updated   Int      @default(0)
+  failed    Int      @default(0)
+  errors    Json?    // [{line, error}]
+  createdAt DateTime @default(now())
+
+  @@index([shopId])
 }
 
 // ===================== Commandes =====================
