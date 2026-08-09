@@ -6,7 +6,7 @@ import { logout } from "./actions";
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/", active: true },
   { label: "Produits", href: "/products", active: false },
-  { label: "Commandes", href: "/orders", soon: true },
+  { label: "Commandes", href: "/orders", active: false },
   { label: "Promotions", href: "/promotions", soon: true },
   { label: "Finances", href: "/finances", soon: true },
   { label: "Paramètres", href: "/settings", soon: true },
