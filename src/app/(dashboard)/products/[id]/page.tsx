@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { formatSyncDelay } from "@/lib/sync-timing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DelistForm } from "@/components/delist-form";
@@ -268,7 +269,7 @@ export default async function ProductDetailPage({
                     ? "À jour"
                     : product.syncStatus === "ERROR"
                       ? "Échec"
-                      : "En attente"}
+                      : `En attente — passe en ligne dans ${formatSyncDelay()}`}
                 </dd>
               </div>
               <div className="flex justify-between">

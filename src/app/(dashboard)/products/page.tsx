@@ -15,6 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { submitProductAction, delistProductAction, bulkProductsAction } from "./actions";
+import { formatSyncDelay } from "@/lib/sync-timing";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Brouillon",
@@ -75,6 +76,9 @@ export default async function ProductsPage({
 
   const countByStatus: Record<string, number> = {};
   for (const c of counts) countByStatus[c.status] = c._count;
+
+  // Compte à rebours jusqu'au prochain créneau de sync (03:00 UTC) — recalculé à chaque chargement
+  const syncDelay = formatSyncDelay();
 
   const buildHref = (nextStatus: string) => {
     const params = new URLSearchParams();
@@ -235,7 +239,9 @@ export default async function ProductsPage({
                     {p.name}
                   </Link>
                   {p.syncStatus === "PENDING" && (
-                    <div className="text-[10px] text-amber-600">sync en attente</div>
+                    <div className="text-[10px] text-amber-600">
+                      Passe en ligne dans {syncDelay}
+                    </div>
                   )}
                 </TableCell>
                 <TableCell className="text-xs text-muted-foreground">{p.sku || "—"}</TableCell>
