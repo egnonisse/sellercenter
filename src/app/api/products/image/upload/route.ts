@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     const blob = await put(`produits/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`, file, {
       access: "public",
       addRandomSuffix: true,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     });
     return Response.json({ url: blob.url });
   } catch (e) {
