@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
-import { requireRole } from "@/lib/require-role";
+import { requirePermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import {
   createProduct,
@@ -71,7 +71,7 @@ export async function createProductAction(
   formData: FormData,
 ): Promise<ProductActionState> {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
     const product = await createProduct(user.shopId, toInput(parseForm(formData)));
     await logProductHistory({ productId: product.id, action: "CREATED", actorUserId: user.id });
@@ -88,7 +88,7 @@ export async function updateProductAction(
   formData: FormData,
 ): Promise<ProductActionState> {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
     const updated = await updateProduct(user.shopId, productId, toInput(parseForm(formData)));
     await logProductHistory({
@@ -107,7 +107,7 @@ export async function updateProductAction(
 
 export async function submitProductAction(productId: string) {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
     await submitProduct(user.shopId, productId);
     await logProductHistory({ productId, action: "SUBMITTED", to: "PENDING_QC", actorUserId: user.id });
@@ -120,7 +120,7 @@ export async function submitProductAction(productId: string) {
 
 export async function delistProductAction(productId: string) {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
     await delistProduct(user.shopId, productId);
     await logProductHistory({ productId, action: "DELISTED", to: "DELISTED", actorUserId: user.id });
@@ -138,7 +138,7 @@ export async function delistProductWithReasonAction(
   formData: FormData,
 ): Promise<ProductActionState> {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
     const reason = String(formData.get("reason") ?? "");
     const comment = String(formData.get("comment") ?? "");
@@ -161,7 +161,7 @@ export async function delistProductWithReasonAction(
 // Demande de suppression (retention) : attend la confirmation admin
 export async function requestDeletionAction(productId: string) {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
     await requestProductDeletion(user.shopId, productId);
     await logProductHistory({
@@ -181,7 +181,7 @@ export async function requestDeletionAction(productId: string) {
 // Actions en masse : soumettre (DRAFT/REJECTED → PENDING_QC) ou retirer (ACTIVE → DELISTED)
 export async function bulkProductsAction(formData: FormData): Promise<void> {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return;
 
     const ids = formData.getAll("ids").map(String);

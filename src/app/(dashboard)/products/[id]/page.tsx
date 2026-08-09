@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DelistForm } from "@/components/delist-form";
@@ -51,7 +52,7 @@ export default async function ProductDetailPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isAdmin = session.user.role === "SUPER_ADMIN";
+  const isGlobal = hasPermission(session.user.permissions, "products.manage_all");
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
@@ -61,7 +62,7 @@ export default async function ProductDetailPage({
     },
   });
   if (!product) redirect("/products");
-  if (!isAdmin && product.shopId !== session.user.shopId) redirect("/products");
+  if (!isGlobal && product.shopId !== session.user.shopId) redirect("/products");
 
   const images = Array.isArray(product.images)
     ? (product.images as { url: string }[]).map((i) => i.url)
@@ -84,14 +85,14 @@ export default async function ProductDetailPage({
           <Badge variant={STATUS_VARIANT[product.status] ?? "secondary"}>
             {STATUS_LABEL[product.status] ?? product.status}
           </Badge>
-          {!isAdmin && canEdit && (
+          {!isGlobal && canEdit && (
             <Link href={`/products/${product.id}/edit`}>
               <Button type="button" size="sm" variant="outline">
                 Modifier
               </Button>
             </Link>
           )}
-          {!isAdmin && canSubmit && (
+          {!isGlobal && canSubmit && (
             <form
               action={async () => {
                 "use server";
@@ -103,7 +104,7 @@ export default async function ProductDetailPage({
               </Button>
             </form>
           )}
-          {!isAdmin && canRequestDeletion && product.status !== "DELISTED" && (
+          {!isGlobal && canRequestDeletion && product.status !== "DELISTED" && (
             <form
               action={async () => {
                 "use server";
@@ -279,7 +280,7 @@ export default async function ProductDetailPage({
         </div>
       </div>
 
-      {!isAdmin && product.status === "ACTIVE" && (
+      {!isGlobal && product.status === "ACTIVE" && (
         <details className="rounded-md border border-border p-3">
           <summary className="cursor-pointer text-sm font-medium">Retirer du shop public (motivé)</summary>
           <div className="mt-3">

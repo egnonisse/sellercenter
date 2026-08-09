@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateOrderStatusAction } from "../actions";
@@ -32,7 +33,7 @@ export default async function OrderDetailPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isAdmin = session.user.role === "SUPER_ADMIN";
+  const isGlobal = hasPermission(session.user.permissions, "orders.read_all");
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
@@ -42,9 +43,9 @@ export default async function OrderDetailPage({
     },
   });
   if (!order) redirect("/orders");
-  if (!isAdmin && order.shopId !== session.user.shopId) redirect("/orders");
+  if (!isGlobal && order.shopId !== session.user.shopId) redirect("/orders");
 
-  const actions = isAdmin ? [] : (NEXT_ACTIONS[order.status] ?? []);
+  const actions = isGlobal ? [] : (NEXT_ACTIONS[order.status] ?? []);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

@@ -2,6 +2,8 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { loadPermissionsForRole } from "@/lib/load-permissions";
+import type { Role } from "@/generated/prisma/enums";
 import { authConfig } from "@/auth.config";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -33,4 +35,24 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    // Au login : charge les permissions du rôle dans le JWT (checks instantanés ensuite)
+    async jwt({ token, user }) {
+      if (user) {
+        const permissions = await loadPermissionsForRole(String(user.role));
+        token.permissions = permissions;
+        token.role = user.role;
+        token.shopId = user.shopId;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.permissions = (token.permissions as string[]) ?? [];
+        session.user.role = (token.role as Role) ?? session.user.role;
+        session.user.shopId = (token.shopId as string | null) ?? session.user.shopId;
+      }
+      return session;
+    },
+  },
 });

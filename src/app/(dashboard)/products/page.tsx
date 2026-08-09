@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import type { Prisma } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +53,7 @@ export default async function ProductsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isAdmin = session.user.role === "SUPER_ADMIN";
+  const isGlobal = hasPermission(session.user.permissions, "products.manage_all");
   const shopId = session.user.shopId;
 
   const where: Prisma.ProductWhereInput = {
@@ -93,7 +94,7 @@ export default async function ProductsPage({
             {q && ` · recherche « ${q} »`}
           </p>
         </div>
-        {!isAdmin && (
+        {!isGlobal && (
           <div className="flex gap-2">
             <Link href="/products/import">
               <Button type="button" variant="outline" size="sm">
@@ -174,7 +175,7 @@ export default async function ProductsPage({
         )}
       </form>
 
-      {!isAdmin && (
+      {!isGlobal && (
         <form id="bulk-form" action={bulkProductsAction} className="flex items-center gap-2">
           <Button type="submit" name="bulkAction" value="submit" size="sm" variant="outline">
             Soumettre la sélection
@@ -192,7 +193,7 @@ export default async function ProductsPage({
         <Table>
           <TableHeader>
             <TableRow>
-              {!isAdmin && <TableHead className="w-10" />}
+              {!isGlobal && <TableHead className="w-10" />}
               <TableHead>Nom</TableHead>
               <TableHead>SKU</TableHead>
               <TableHead>Catégorie</TableHead>
@@ -208,7 +209,7 @@ export default async function ProductsPage({
                 <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
                   Aucun produit{status ? ` avec le statut « ${STATUS_LABEL[status] ?? status} »` : ""}
                   {q ? ` pour « ${q} »` : ""}.{" "}
-                  {!isAdmin && (
+                  {!isGlobal && (
                     <Link href="/products/new" className="underline">
                       Ajoutez votre premier produit
                     </Link>
@@ -218,7 +219,7 @@ export default async function ProductsPage({
             )}
             {products.map((p) => (
               <TableRow key={p.id}>
-                {!isAdmin && (
+                {!isGlobal && (
                   <TableCell>
                     <input
                       type="checkbox"
@@ -248,7 +249,7 @@ export default async function ProductsPage({
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2">
-                    {!isAdmin && p.status !== "DELISTED" && p.status !== "DELETION_PENDING" && (
+                    {!isGlobal && p.status !== "DELISTED" && p.status !== "DELETION_PENDING" && (
                       <>
                         <Link href={`/products/${p.id}/edit`}>
                           <Button type="button" size="sm" variant="outline">

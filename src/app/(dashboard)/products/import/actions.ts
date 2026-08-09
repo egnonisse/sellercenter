@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/require-role";
+import { requirePermission } from "@/lib/rbac";
 import { importProductsCsv, type ImportType } from "@/lib/products-import";
 
 export type ImportState = {
@@ -14,7 +14,7 @@ export async function importProductsAction(
   formData: FormData,
 ): Promise<ImportState> {
   try {
-    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    const user = await requirePermission("products.manage");
     if (!user.shopId) return { error: "Boutique introuvable." };
 
     const file = formData.get("file");

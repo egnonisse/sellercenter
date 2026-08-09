@@ -1,25 +1,25 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { hasPermission } from "@/lib/rbac";
 import { logout } from "./actions";
-
-const NAV_ITEMS = [
-  { label: "Dashboard", href: "/", active: true },
-  { label: "Produits", href: "/products", active: false },
-  { label: "Commandes", href: "/orders", active: false },
-  { label: "Promotions", href: "/promotions", soon: true },
-  { label: "Finances", href: "/finances", soon: true },
-  { label: "Paramètres", href: "/settings", soon: true },
-];
-
-const ADMIN_ITEMS = [
-  { label: "Vendeurs", href: "/admin/sellers" },
-  { label: "Produits à valider", href: "/admin/products" },
-];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+  const perms = session.user.permissions ?? [];
+
+  const canProducts = hasPermission(perms, "products.manage") || hasPermission(perms, "products.manage_all");
+  const canOrders = hasPermission(perms, "orders.read") || hasPermission(perms, "orders.read_all");
+  const canSellers = hasPermission(perms, "sellers.read");
+  const canQc = hasPermission(perms, "products.qc");
+  const canRoles = hasPermission(perms, "roles.manage");
+
+  const adminItems = [
+    ...(canSellers ? [{ label: "Vendeurs", href: "/admin/sellers" }] : []),
+    ...(canQc ? [{ label: "Produits à valider", href: "/admin/products" }] : []),
+    ...(canRoles ? [{ label: "Rôles & permissions", href: "/admin/roles" }] : []),
+  ];
 
   return (
     <div className="flex min-h-full">
@@ -29,36 +29,48 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <span className="ml-2 text-xs text-zinc-400">Zariamall</span>
         </div>
         <nav className="flex-1 space-y-1 p-3">
-          {NAV_ITEMS.map((item) =>
-            item.soon ? (
-              <span
-                key={item.href}
-                className="flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-zinc-400 opacity-60"
-                title="Module à venir"
-              >
-                {item.label}
-                <span className="text-[10px] uppercase tracking-wide">bientôt</span>
-              </span>
-            ) : (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${
-                  item.active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ),
+          <Link
+            href="/"
+            className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+          >
+            Dashboard
+          </Link>
+          {canProducts && (
+            <Link
+              href="/products"
+              className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Produits
+            </Link>
           )}
-          {session.user.role === "SUPER_ADMIN" && (
+          {canOrders && (
+            <Link
+              href="/orders"
+              className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Commandes
+            </Link>
+          )}
+          {[
+            { label: "Promotions", href: "/promotions" },
+            { label: "Finances", href: "/finances" },
+            { label: "Paramètres", href: "/settings" },
+          ].map((item) => (
+            <span
+              key={item.href}
+              className="flex cursor-not-allowed items-center justify-between rounded-md px-3 py-2 text-sm text-zinc-400 opacity-60"
+              title="Module à venir"
+            >
+              {item.label}
+              <span className="text-[10px] uppercase tracking-wide">bientôt</span>
+            </span>
+          ))}
+          {adminItems.length > 0 && (
             <div className="pt-3">
               <p className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-400">
                 Administration
               </p>
-              {ADMIN_ITEMS.map((item) => (
+              {adminItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}

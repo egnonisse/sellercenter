@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/require-role";
+import { requirePermissionDb } from "@/lib/rbac";
 import { approveProduct, rejectProduct, confirmProductDeletion, restoreProduct } from "@/lib/products";
 import { logProductHistory } from "@/lib/product-history";
 import { syncPendingProducts } from "@/lib/sync";
@@ -9,7 +9,7 @@ import { syncPendingProducts } from "@/lib/sync";
 // Déclenche la synchronisation WooCommerce (bouton admin)
 export async function syncNowAction() {
   try {
-    await requireRole(["SUPER_ADMIN"]);
+    await requirePermissionDb("products.sync");
     const result = await syncPendingProducts();
     console.log("syncNowAction:", result.total, "traité(s),", result.synced, "ok,", result.failed, "échec(s)");
     revalidatePath("/admin/products");
@@ -23,7 +23,7 @@ export async function syncNowAction() {
 
 export async function approveProductAction(productId: string) {
   try {
-    const user = await requireRole(["SUPER_ADMIN"]);
+    const user = await requirePermissionDb("products.qc");
     await approveProduct(productId);
     await logProductHistory({ productId, action: "APPROVED", to: "ACTIVE", actorUserId: user.id });
     revalidatePath("/admin/products");
@@ -42,7 +42,7 @@ export async function rejectProductAction(
   formData: FormData,
 ): Promise<{ error?: string } | undefined> {
   try {
-    const user = await requireRole(["SUPER_ADMIN"]);
+    const user = await requirePermissionDb("products.qc");
     const reason = String(formData.get("reason") ?? "");
     const note = String(formData.get("note") ?? "");
     if (!reason) return { error: "Choisissez une raison de rejet." };
@@ -66,7 +66,7 @@ export async function rejectProductAction(
 // Confirmation admin de la suppression d'un produit en retention
 export async function confirmDeletionAction(productId: string) {
   try {
-    const user = await requireRole(["SUPER_ADMIN"]);
+    const user = await requirePermissionDb("products.qc");
     await confirmProductDeletion(productId);
     await logProductHistory({
       productId,
@@ -86,7 +86,7 @@ export async function confirmDeletionAction(productId: string) {
 // Restauration admin d'un produit en retention
 export async function restoreProductAction(productId: string) {
   try {
-    const user = await requireRole(["SUPER_ADMIN"]);
+    const user = await requirePermissionDb("products.qc");
     await restoreProduct(productId);
     await logProductHistory({ productId, action: "RESTORED", to: "DRAFT", actorUserId: user.id });
     revalidatePath("/admin/products");

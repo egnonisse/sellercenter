@@ -80,3 +80,27 @@ export async function rejectSeller(sellerId: string) {
     prisma.user.updateMany({ where: { email: seller.email }, data: { status: "SUSPENDED" } }),
   ]);
 }
+
+// Suspension par le KAM/admin : bloque le login + coupe la boutique.
+export async function suspendSeller(sellerId: string) {
+  const seller = await prisma.seller.findUnique({ where: { id: sellerId } });
+  if (!seller) throw new Error("Vendeur introuvable");
+
+  await prisma.$transaction([
+    prisma.seller.update({ where: { id: sellerId }, data: { status: "SUSPENDED" } }),
+    prisma.shop.updateMany({ where: { sellerId }, data: { status: "SUSPENDED" } }),
+    prisma.user.updateMany({ where: { email: seller.email }, data: { status: "SUSPENDED" } }),
+  ]);
+}
+
+// Réactivation d'un vendeur suspendu.
+export async function activateSeller(sellerId: string) {
+  const seller = await prisma.seller.findUnique({ where: { id: sellerId } });
+  if (!seller) throw new Error("Vendeur introuvable");
+
+  await prisma.$transaction([
+    prisma.seller.update({ where: { id: sellerId }, data: { status: "ACTIVE" } }),
+    prisma.shop.updateMany({ where: { sellerId }, data: { status: "ACTIVE" } }),
+    prisma.user.updateMany({ where: { email: seller.email }, data: { status: "ACTIVE" } }),
+  ]);
+}

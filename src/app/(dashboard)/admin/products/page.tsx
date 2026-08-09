@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,7 +24,7 @@ import {
 export default async function AdminProductsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "SUPER_ADMIN") redirect("/");
+  if (!hasPermission(session.user.permissions ?? [], "products.qc")) redirect("/");
 
   const [products, pendingSync, deletions] = await Promise.all([
     prisma.product.findMany({

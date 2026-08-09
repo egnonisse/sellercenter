@@ -1,6 +1,7 @@
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { DEFAULT_ROLE_PERMISSIONS, PERMISSION_NAMES } from "../src/lib/rbac-constants";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
@@ -12,6 +13,18 @@ async function main() {
     update: {},
     create: { id: "global", defaultCommissionRate: 10, signupOpen: true },
   });
+
+  // Permissions par rôle (RBAC) — idempotent
+  for (const [role, perms] of Object.entries(DEFAULT_ROLE_PERMISSIONS)) {
+    for (const permission of PERMISSION_NAMES) {
+      await prisma.rolePermission.upsert({
+        where: { role_permission: { role: role as never, permission } },
+        update: { granted: perms.includes(permission) },
+        create: { role: role as never, permission, granted: perms.includes(permission) },
+      });
+    }
+  }
+  console.log("Permissions RBAC à jour (4 rôles × 14 permissions).");
 
   // Super admin (LEO)
   const email = process.env.SEED_ADMIN_EMAIL;

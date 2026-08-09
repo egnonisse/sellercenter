@@ -1,11 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireRole } from "@/lib/require-role";
+import { requirePermission, hasPermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import type { OrderStatus } from "@/generated/prisma/enums";
 
-// Transitions autorisées pour un vendeur (l'admin peut tout faire)
+// Transitions autorisées pour un vendeur (les gestionnaires globaux peuvent tout faire)
 const SELLER_TRANSITIONS: Record<string, string[]> = {
   READY_TO_SHIP: ["SHIPPED", "CANCELLED"],
   SHIPPED: ["DELIVERED"],
@@ -13,14 +13,14 @@ const SELLER_TRANSITIONS: Record<string, string[]> = {
 };
 
 export async function updateOrderStatusAction(orderId: string, newStatus: string) {
-  const user = await requireRole(["SUPER_ADMIN", "SHOP_ADMIN", "SHOP_MANAGER"]);
+  const user = await requirePermission("orders.manage");
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return { error: "Commande introuvable." };
 
-  const isAdmin = user.role === "SUPER_ADMIN";
-  if (!isAdmin && order.shopId !== user.shopId) return { error: "Accès refusé." };
+  const isGlobal = hasPermission(user.permissions, "orders.manage_all");
+  if (!isGlobal && order.shopId !== user.shopId) return { error: "Accès refusé." };
 
-  if (!isAdmin) {
+  if (!isGlobal) {
     const allowed = SELLER_TRANSITIONS[order.status] ?? [];
     if (!allowed.includes(newStatus)) {
       return { error: `Transition ${order.status} → ${newStatus} non autorisée.` };

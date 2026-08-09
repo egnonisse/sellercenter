@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -11,18 +12,25 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { approveSellerAction, rejectSellerAction } from "./actions";
+import {
+  approveSellerAction,
+  rejectSellerAction,
+  suspendSellerAction,
+  activateSellerAction,
+} from "./actions";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "En attente",
   ACTIVE: "Actif",
-  SUSPENDED: "Rejeté/Suspendu",
+  SUSPENDED: "Suspendu",
 };
 
 export default async function AdminSellersPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  if (session.user.role !== "SUPER_ADMIN") redirect("/");
+  const perms = session.user.permissions ?? [];
+  // Lecture pour le KAM (supervision), approbations pour qui a la permission
+  if (!hasPermission(perms, "sellers.read")) redirect("/");
 
   const sellers = await prisma.seller.findMany({
     orderBy: { createdAt: "desc" },
@@ -30,13 +38,16 @@ export default async function AdminSellersPage() {
   });
 
   const pending = sellers.filter((s) => s.status === "PENDING");
+  const canApprove = hasPermission(perms, "sellers.approve");
+  const canSuspend = hasPermission(perms, "sellers.suspend");
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Vendeurs</h1>
         <p className="text-sm text-muted-foreground">
-          {pending.length} inscription(s) en attente de validation
+          {pending.length} inscription(s) en attente de validation ·{" "}
+          {sellers.length} vendeur(s) au total
         </p>
       </div>
 
@@ -77,30 +88,56 @@ export default async function AdminSellersPage() {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  {seller.status === "PENDING" && (
-                    <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2">
+                    {seller.status === "PENDING" && canApprove && (
+                      <>
+                        <form
+                          action={async () => {
+                            "use server";
+                            await approveSellerAction(seller.id);
+                          }}
+                        >
+                          <Button type="submit" size="sm">
+                            Approuver
+                          </Button>
+                        </form>
+                        <form
+                          action={async () => {
+                            "use server";
+                            await rejectSellerAction(seller.id);
+                          }}
+                        >
+                          <Button type="submit" size="sm" variant="outline">
+                            Rejeter
+                          </Button>
+                        </form>
+                      </>
+                    )}
+                    {seller.status === "ACTIVE" && canSuspend && (
                       <form
                         action={async () => {
                           "use server";
-                          await approveSellerAction(seller.id);
+                          await suspendSellerAction(seller.id);
                         }}
                       >
-                        <Button type="submit" size="sm">
-                          Approuver
+                        <Button type="submit" size="sm" variant="outline" className="text-red-600">
+                          Suspendre
                         </Button>
                       </form>
+                    )}
+                    {seller.status === "SUSPENDED" && canSuspend && (
                       <form
                         action={async () => {
                           "use server";
-                          await rejectSellerAction(seller.id);
+                          await activateSellerAction(seller.id);
                         }}
                       >
                         <Button type="submit" size="sm" variant="outline">
-                          Rejeter
+                          Réactiver
                         </Button>
                       </form>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

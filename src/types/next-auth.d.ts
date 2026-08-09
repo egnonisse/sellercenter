@@ -1,6 +1,6 @@
 import type { DefaultSession } from "next-auth";
 
-type AppRole = "SUPER_ADMIN" | "SHOP_ADMIN" | "SHOP_MANAGER";
+type AppRole = "SUPER_ADMIN" | "KAM" | "SHOP_ADMIN" | "SHOP_MANAGER";
 
 declare module "next-auth" {
   interface Session {
@@ -8,6 +8,7 @@ declare module "next-auth" {
       id: string;
       role: AppRole;
       shopId: string | null;
+      permissions: string[];
     } & DefaultSession["user"];
   }
 
@@ -21,5 +22,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: AppRole;
     shopId?: string | null;
+    permissions?: string[];
   }
 }

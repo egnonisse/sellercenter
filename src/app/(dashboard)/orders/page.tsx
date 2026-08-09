@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { hasPermission } from "@/lib/rbac";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -32,7 +33,7 @@ export default async function OrdersPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isAdmin = session.user.role === "SUPER_ADMIN";
+  const isGlobal = hasPermission(session.user.permissions, "orders.read_all");
   const shopId = session.user.shopId;
 
   const orders = await prisma.order.findMany({
@@ -55,7 +56,7 @@ export default async function OrdersPage() {
             <TableRow>
               <TableHead>Commande</TableHead>
               <TableHead>Client</TableHead>
-              {isAdmin && <TableHead>Boutique</TableHead>}
+              {isGlobal && <TableHead>Boutique</TableHead>}
               <TableHead>Articles</TableHead>
               <TableHead>Total (FCFA)</TableHead>
               <TableHead>Statut</TableHead>
@@ -78,7 +79,7 @@ export default async function OrdersPage() {
                   </Link>
                 </TableCell>
                 <TableCell>{order.customerName}</TableCell>
-                {isAdmin && <TableCell>{order.shop.name}</TableCell>}
+                {isGlobal && <TableCell>{order.shop.name}</TableCell>}
                 <TableCell>
                   {order.items.reduce((sum, i) => sum + i.qty, 0)}
                 </TableCell>
