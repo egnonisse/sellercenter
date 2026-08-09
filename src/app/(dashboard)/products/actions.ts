@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { requireRole } from "@/lib/require-role";
+import { prisma } from "@/lib/prisma";
 import {
   createProduct,
   updateProduct,
@@ -102,5 +103,40 @@ export async function delistProductAction(productId: string) {
     return {};
   } catch (e) {
     return { error: errorMessage(e) };
+  }
+}
+
+// Actions en masse : soumettre (DRAFT/REJECTED → PENDING_QC) ou retirer (ACTIVE → DELISTED)
+export async function bulkProductsAction(formData: FormData): Promise<void> {
+  try {
+    const user = await requireRole(["SHOP_ADMIN", "SHOP_MANAGER"]);
+    if (!user.shopId) return;
+
+    const ids = formData.getAll("ids").map(String);
+    const action = String(formData.get("bulkAction") ?? "");
+    if (ids.length === 0) return;
+
+    const owned = await prisma.product.count({
+      where: { id: { in: ids }, shopId: user.shopId },
+    });
+    if (owned !== ids.length) return;
+
+    if (action === "submit") {
+      await prisma.product.updateMany({
+        where: { id: { in: ids }, status: { in: ["DRAFT", "REJECTED"] } },
+        data: { status: "PENDING_QC", qcNote: null },
+      });
+    } else if (action === "delist") {
+      await prisma.product.updateMany({
+        where: { id: { in: ids }, status: "ACTIVE" },
+        data: { status: "DELISTED", syncStatus: "PENDING" },
+      });
+    } else {
+      return;
+    }
+
+    revalidatePath("/products");
+  } catch (e) {
+    console.error("bulkProductsAction:", e);
   }
 }

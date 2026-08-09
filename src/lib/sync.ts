@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { wooCreateProduct, wooUpdateProduct } from "@/lib/woocommerce";
+import {
+  wooCreateProduct,
+  wooUpdateProduct,
+  wooGetProductBySlug,
+} from "@/lib/woocommerce";
 
 // Mapping produit SellerCenter → payload WooCommerce
 // price = prix actuel, compareAtPrice = ancien prix (affiché barré)
@@ -54,8 +58,15 @@ export async function syncProduct(productId: string) {
   try {
     let wooId = product.wooId;
     if (wooId === null) {
-      const created = await wooCreateProduct(payload);
-      wooId = created.id;
+      // Slug déjà présent sur WooCommerce ? réutiliser l'id au lieu de dupliquer
+      const bySlug = await wooGetProductBySlug(product.slug);
+      if (bySlug) {
+        wooId = bySlug.id;
+        await wooUpdateProduct(wooId, payload);
+      } else {
+        const created = await wooCreateProduct(payload);
+        wooId = created.id;
+      }
     } else {
       await wooUpdateProduct(wooId, payload);
     }

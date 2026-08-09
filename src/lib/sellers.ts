@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { slugify } from "@/lib/slug";
 
 // Validation des entrées d'inscription
 export const sellerRegistrationSchema = z.object({
@@ -12,17 +13,6 @@ export const sellerRegistrationSchema = z.object({
 });
 
 export type SellerRegistration = z.infer<typeof sellerRegistrationSchema>;
-
-// Slug simple : minuscules, sans accents, tirets
-export function slugify(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
-}
 
 async function uniqueSlug(base: string): Promise<string> {
   const root = base || "boutique";

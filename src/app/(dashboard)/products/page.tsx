@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { submitProductAction, delistProductAction } from "./actions";
+import { submitProductAction, delistProductAction, bulkProductsAction } from "./actions";
 
 const STATUS_LABEL: Record<string, string> = {
   DRAFT: "Brouillon",
@@ -57,16 +57,41 @@ export default async function ProductsPage() {
           </p>
         </div>
         {!isAdmin && (
-          <Link href="/products/new">
-            <Button>Ajouter un produit</Button>
-          </Link>
+          <div className="flex gap-2">
+            <Link href="/products/import">
+              <Button type="button" variant="outline" size="sm">
+                Importer
+              </Button>
+            </Link>
+            <Link href="/api/products/export">
+              <Button type="button" variant="outline" size="sm">
+                Exporter CSV
+              </Button>
+            </Link>
+            <Link href="/products/new">
+              <Button>Ajouter</Button>
+            </Link>
+          </div>
         )}
       </div>
+
+      {!isAdmin && (
+        <form id="bulk-form" action={bulkProductsAction} className="flex items-center gap-2">
+          <Button type="submit" name="bulkAction" value="submit" size="sm" variant="outline">
+            Soumettre la sélection
+          </Button>
+          <Button type="submit" name="bulkAction" value="delist" size="sm" variant="outline">
+            Retirer la sélection
+          </Button>
+          <span className="text-xs text-zinc-400">cochez des produits pour agir en masse</span>
+        </form>
+      )}
 
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              {!isAdmin && <TableHead className="w-10" />}
               <TableHead>Produit</TableHead>
               <TableHead>Catégorie</TableHead>
               <TableHead>Prix (FCFA)</TableHead>
@@ -78,7 +103,7 @@ export default async function ProductsPage() {
           <TableBody>
             {products.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-zinc-500">
+                <TableCell colSpan={7} className="py-8 text-center text-zinc-500">
                   Aucun produit.{" "}
                   {!isAdmin && (
                     <Link href="/products/new" className="underline">
@@ -90,8 +115,21 @@ export default async function ProductsPage() {
             )}
             {products.map((p) => (
               <TableRow key={p.id}>
+                {!isAdmin && (
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      name="ids"
+                      value={p.id}
+                      form="bulk-form"
+                      className="h-4 w-4 rounded border-zinc-300"
+                    />
+                  </TableCell>
+                )}
                 <TableCell className="max-w-[280px] font-medium">
-                  <div className="truncate">{p.name}</div>
+                  <Link href={`/products/${p.id}`} className="hover:underline">
+                    {p.name}
+                  </Link>
                   {p.syncStatus === "PENDING" && (
                     <div className="text-[10px] text-amber-600">sync en attente</div>
                   )}

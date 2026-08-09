@@ -54,6 +54,13 @@ export async function wooCreateProduct(data: Record<string, unknown>): Promise<{
   return wooFetch((api) => api.post("products", data));
 }
 
+// Recherche d'un produit WooCommerce par slug (évite les doublons à la recréation)
+export async function wooGetProductBySlug(slug: string): Promise<{ id: number } | null> {
+  const data = await wooFetch((api) => api.get("products", { slug, per_page: 1 }));
+  const list = data as { id: number }[];
+  return list[0] ?? null;
+}
+
 // Mise à jour d'un produit WooCommerce par son id
 export async function wooUpdateProduct(
   id: number,
