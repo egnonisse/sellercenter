@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { createNotification } from "@/lib/notifications";
 import type { OrderStatus } from "@/generated/prisma/enums";
 
 // Payload WooCommerce (order.created / order.updated)
@@ -72,6 +73,16 @@ export async function processWooOrder(payload: WooOrderPayload) {
     const order = existing
       ? await prisma.order.update({ where: { id: existing.id }, data })
       : await prisma.order.create({ data });
+
+    // Notification : nouvelle commande pour la boutique
+    if (!existing) {
+      await createNotification({
+        shopId,
+        type: "ORDER_RECEIVED",
+        title: `Nouvelle commande #${wooId}`,
+        message: `${customerName} — ${Number(toDecimal(payload.total)).toLocaleString("fr-FR")} FCFA (${items.length} article(s))`,
+      });
+    }
 
     // Items : recréation simple (idempotent)
     await prisma.orderItem.deleteMany({ where: { orderId: order.id } });

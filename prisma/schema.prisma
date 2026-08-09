@@ -95,6 +95,7 @@ model Shop {
   logoUrl          String?
   description      String?
   status           ShopStatus       @default(PENDING)
+  holidayMode      Boolean          @default(false) // mode vacances (pattern Jumia)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
   users            User[]
@@ -104,6 +105,7 @@ model Shop {
   settlements      Settlement[]
   apiApplications  ApiApplication[]
   importHistory    ImportHistory[]
+  notifications    Notification[]
 }
 
 model User {
@@ -328,6 +330,21 @@ model SettlementLine {
   net          Decimal    @db.Decimal(10, 2)
 
   @@unique([settlementId, orderItemId])
+}
+
+// ===================== Notifications =====================
+
+model Notification {
+  id        String    @id @default(cuid())
+  shopId    String
+  shop      Shop      @relation(fields: [shopId], references: [id])
+  type      String    // PRODUCT_REJECTED | PRODUCT_APPROVED | ORDER_RECEIVED | SELLER_APPROVED | SETTLEMENT_PAID
+  title     String
+  message   String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([shopId, readAt])
 }
 
 // ===================== Infrastructure =====================

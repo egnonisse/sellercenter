@@ -13,6 +13,7 @@ export const PERMISSIONS: { name: string; label: string; group: string }[] = [
   { name: "orders.read_all", label: "Voir les commandes de toutes les boutiques", group: "Commandes" },
   { name: "orders.manage_all", label: "Gérer les commandes de toutes les boutiques", group: "Commandes" },
   { name: "finance.read_all", label: "Voir les finances de toutes les boutiques", group: "Finances" },
+  { name: "finance.manage_all", label: "Gérer les relevés (marquer payé)", group: "Finances" },
   { name: "settings.manage", label: "Configurer la plateforme", group: "Plateforme" },
   { name: "roles.manage", label: "Gérer les rôles & permissions", group: "Plateforme" },
 ];

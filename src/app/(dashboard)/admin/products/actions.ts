@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requirePermissionDb } from "@/lib/rbac";
 import { approveProduct, rejectProduct, confirmProductDeletion, restoreProduct } from "@/lib/products";
 import { logProductHistory } from "@/lib/product-history";
+import { createNotification } from "@/lib/notifications";
 import { syncPendingProducts } from "@/lib/sync";
 
 // Déclenche la synchronisation WooCommerce (bouton admin)
@@ -24,8 +25,14 @@ export async function syncNowAction() {
 export async function approveProductAction(productId: string) {
   try {
     const user = await requirePermissionDb("products.qc");
-    await approveProduct(productId);
+    const product = await approveProduct(productId);
     await logProductHistory({ productId, action: "APPROVED", to: "ACTIVE", actorUserId: user.id });
+    await createNotification({
+      shopId: product.shopId,
+      type: "PRODUCT_APPROVED",
+      title: "Produit validé",
+      message: `« ${product.name} » est maintenant actif sur la vitrine.`,
+    });
     revalidatePath("/admin/products");
     revalidatePath("/products");
     return {};
@@ -46,13 +53,19 @@ export async function rejectProductAction(
     const reason = String(formData.get("reason") ?? "");
     const note = String(formData.get("note") ?? "");
     if (!reason) return { error: "Choisissez une raison de rejet." };
-    await rejectProduct(productId, reason, note);
+    const product = await rejectProduct(productId, reason, note);
     await logProductHistory({
       productId,
       action: "REJECTED",
       to: "REJECTED",
       note: `${reason}${note ? ` — ${note}` : ""}`,
       actorUserId: user.id,
+    });
+    await createNotification({
+      shopId: product.shopId,
+      type: "PRODUCT_REJECTED",
+      title: "Produit rejeté",
+      message: `« ${product.name} » : ${reason}${note ? ` — ${note}` : ""}`,
     });
     revalidatePath("/admin/products");
     revalidatePath("/products");

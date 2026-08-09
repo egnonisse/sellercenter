@@ -66,7 +66,7 @@ export default async function DashboardPage() {
   }
 
   // ---------- Vue KAM / ADMIN : données globales ----------
-  const [sellers, pendingSellers, pendingQcCount, pendingDeletions, totalOrders] = await Promise.all([
+  const [sellers, pendingSellers, pendingQcCount, pendingDeletions, totalOrders, revenueByShop] = await Promise.all([
     prisma.seller.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -86,7 +86,16 @@ export default async function DashboardPage() {
     canQc ? prisma.product.count({ where: { status: "PENDING_QC" } }) : Promise.resolve(0),
     canQc ? prisma.product.count({ where: { status: "DELETION_PENDING" } }) : Promise.resolve(0),
     canReadAllOrders ? prisma.order.count() : Promise.resolve(0),
+    canReadAllOrders
+      ? prisma.order.groupBy({
+          by: ["shopId"],
+          where: { status: "DELIVERED" },
+          _sum: { total: true },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const revenueMap = new Map(revenueByShop.map((r) => [r.shopId, Number(r._sum.total ?? 0)]));
 
   const kamMode = !canApproveSellers && !canQc;
 
@@ -176,10 +185,14 @@ export default async function DashboardPage() {
               <TableHead>Statut</TableHead>
               <TableHead>Produits actifs</TableHead>
               <TableHead>Commandes</TableHead>
+              <TableHead>CA livré (FCFA)</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sellers.map((seller) => (
+            {sellers.map((seller) => {
+              const shopIds = seller.shops.map((s) => s.id);
+              const revenue = shopIds.reduce((sum, id) => sum + (revenueMap.get(id) ?? 0), 0);
+              return (
               <TableRow key={seller.id}>
                 <TableCell className="font-medium">{seller.name}</TableCell>
                 <TableCell>{seller.shops.map((s) => s.name).join(", ") || "—"}</TableCell>
@@ -194,11 +207,15 @@ export default async function DashboardPage() {
                 <TableCell>
                   {seller.shops.reduce((n, s) => n + s._count.orders, 0)}
                 </TableCell>
+                <TableCell className="font-medium">
+                  {revenue.toLocaleString("fr-FR")}
+                </TableCell>
               </TableRow>
-            ))}
+              );
+            })}
             {sellers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="py-6 text-center text-muted-foreground">
                   Aucun vendeur.
                 </TableCell>
               </TableRow>
