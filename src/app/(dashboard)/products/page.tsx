@@ -52,7 +52,7 @@ export default async function ProductsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produits</h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             {shop ? `${shop.name} — ` : ""}{products.length} produit(s)
           </p>
         </div>
@@ -103,7 +103,7 @@ export default async function ProductsPage() {
           <TableBody>
             {products.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-zinc-500">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Aucun produit.{" "}
                   {!isAdmin && (
                     <Link href="/products/new" className="underline">

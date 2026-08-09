@@ -16,7 +16,7 @@ export default function ImportProductsPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Importer des produits</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           Format CSV identique à l&apos;export. Le champ{" "}
           <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-800">slug</code> permet de
           mettre à jour un produit existant de votre boutique ; sans slug, le produit est créé.

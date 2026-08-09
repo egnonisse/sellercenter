@@ -15,7 +15,7 @@ export default async function NewProductPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Nouveau produit</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           Le produit sera en brouillon, puis soumis à validation.
         </p>
       </div>

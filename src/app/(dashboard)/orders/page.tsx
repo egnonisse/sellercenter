@@ -46,7 +46,7 @@ export default async function OrdersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Commandes</h1>
-        <p className="text-sm text-zinc-500">{orders.length} commande(s)</p>
+        <p className="text-sm text-muted-foreground">{orders.length} commande(s)</p>
       </div>
 
       <div className="rounded-md border">
@@ -65,7 +65,7 @@ export default async function OrdersPage() {
           <TableBody>
             {orders.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="py-8 text-center text-zinc-500">
+                <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                   Aucune commande pour le moment. Les commandes du shop apparaîtront ici.
                 </TableCell>
               </TableRow>

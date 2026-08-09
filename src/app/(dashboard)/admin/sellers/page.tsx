@@ -35,7 +35,7 @@ export default async function AdminSellersPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Vendeurs</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           {pending.length} inscription(s) en attente de validation
         </p>
       </div>
@@ -55,7 +55,7 @@ export default async function AdminSellersPage() {
           <TableBody>
             {sellers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-zinc-500">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Aucun vendeur inscrit pour le moment.
                 </TableCell>
               </TableRow>
@@ -66,7 +66,7 @@ export default async function AdminSellersPage() {
                 <TableCell>{seller.shops.map((s) => s.name).join(", ") || "—"}</TableCell>
                 <TableCell>
                   <div className="text-sm">{seller.email}</div>
-                  <div className="text-xs text-zinc-500">{seller.phone}</div>
+                  <div className="text-xs text-muted-foreground">{seller.phone}</div>
                 </TableCell>
                 <TableCell>
                   {new Date(seller.createdAt).toLocaleDateString("fr-FR")}

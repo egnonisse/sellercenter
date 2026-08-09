@@ -26,7 +26,7 @@ export default async function EditProductPage({
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Modifier le produit</h1>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-muted-foreground">
           Toute modification repasse le produit en brouillon (nouvelle validation).
         </p>
       </div>

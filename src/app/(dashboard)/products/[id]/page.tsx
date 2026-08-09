@@ -53,7 +53,7 @@ export default async function ProductDetailPage({
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{product.name}</h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             {product.shop.name} · {product.category.name}
           </p>
         </div>

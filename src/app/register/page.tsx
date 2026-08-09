@@ -37,7 +37,7 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">Devenir vendeur</h1>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-muted-foreground">
             Ouvrez votre boutique sur Zariamall
           </p>
         </div>
@@ -93,7 +93,7 @@ export default function RegisterPage() {
           </Button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-zinc-500">
+        <p className="mt-6 text-center text-sm text-muted-foreground">
           Déjà inscrit ?{" "}
           <Link href="/login" className="font-medium text-zinc-900 dark:text-zinc-100">
             Se connecter

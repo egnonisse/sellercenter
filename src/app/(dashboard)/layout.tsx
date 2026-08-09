@@ -23,8 +23,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex min-h-full">
-      <aside className="hidden w-60 shrink-0 border-r border-zinc-200 bg-white md:flex md:flex-col dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="flex h-14 items-center border-b border-zinc-200 px-4 dark:border-zinc-800">
+      <aside className="hidden w-60 shrink-0 border-r border-border bg-white md:flex md:flex-col dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="flex h-14 items-center border-b border-border px-4 dark:border-zinc-800">
           <span className="text-sm font-semibold">SellerCenter</span>
           <span className="ml-2 text-xs text-zinc-400">Zariamall</span>
         </div>
@@ -45,8 +45,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 href={item.href}
                 className={`flex items-center rounded-md px-3 py-2 text-sm font-medium ${
                   item.active
-                    ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-black"
-                    : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {item.label}
@@ -62,7 +62,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+                  className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
                 >
                   {item.label}
                 </Link>
@@ -70,12 +70,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </div>
           )}
         </nav>
-        <div className="border-t border-zinc-200 p-3 dark:border-zinc-800">
-          <p className="mb-2 truncate px-3 text-xs text-zinc-500">{session.user.email}</p>
+        <div className="border-t border-border p-3">
+          <p className="mb-2 truncate px-3 text-xs text-muted-foreground">{session.user.email}</p>
           <form action={logout}>
             <button
               type="submit"
-              className="w-full rounded-md px-3 py-2 text-left text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-900"
+              className="w-full rounded-md px-3 py-2 text-left text-sm text-muted-foreground hover:bg-muted"
             >
               Se déconnecter
             </button>

@@ -59,7 +59,7 @@ export function ProductForm({
           name="description"
           defaultValue={initial?.description ?? ""}
           rows={4}
-          className="w-full rounded-md border border-zinc-200 bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-800"
+          className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-800"
           placeholder="Caractéristiques du produit..."
         />
       </div>
@@ -72,7 +72,7 @@ export function ProductForm({
             name="categoryId"
             defaultValue={initial?.categoryId ?? ""}
             required
-            className="w-full rounded-md border border-zinc-200 bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950"
+            className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-800 dark:bg-zinc-950"
           >
             <option value="" disabled>
               Choisir une catégorie
@@ -120,7 +120,7 @@ export function ProductForm({
           name="images"
           defaultValue={imagesText}
           rows={3}
-          className="w-full rounded-md border border-zinc-200 bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-800"
+          className="w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-zinc-900 dark:border-zinc-800"
           placeholder={"https://.../image1.jpg\nhttps://.../image2.jpg"}
         />
       </div>

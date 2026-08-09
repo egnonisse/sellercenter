@@ -53,7 +53,7 @@ export default async function OrderDetailPage({
           <h1 className="text-2xl font-semibold tracking-tight">
             Commande #{order.wooId ?? order.id.slice(0, 8)}
           </h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             {order.shop.name} · {new Date(order.createdAt).toLocaleDateString("fr-FR")}
           </p>
         </div>
@@ -64,8 +64,8 @@ export default async function OrderDetailPage({
         <div className="rounded-md border p-4">
           <h2 className="mb-2 text-sm font-semibold">Client</h2>
           <p className="text-sm">{order.customerName}</p>
-          <p className="text-sm text-zinc-500">{order.phone}</p>
-          {order.address && <p className="text-sm text-zinc-500">{order.address}</p>}
+          <p className="text-sm text-muted-foreground">{order.phone}</p>
+          {order.address && <p className="text-sm text-muted-foreground">{order.address}</p>}
         </div>
         <div className="rounded-md border p-4">
           <h2 className="mb-2 text-sm font-semibold">Paiement</h2>
@@ -83,7 +83,7 @@ export default async function OrderDetailPage({
           <div key={item.id} className="flex items-center justify-between border-b px-4 py-3 text-sm last:border-0">
             <div>
               <p className="font-medium">{item.name}</p>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-muted-foreground">
                 {item.qty} × {Number(item.unitPrice).toLocaleString("fr-FR")} FCFA
               </p>
             </div>
@@ -113,14 +113,14 @@ export default async function OrderDetailPage({
       <div className="rounded-md border">
         <div className="border-b px-4 py-2 text-sm font-semibold">Historique</div>
         {order.history.length === 0 && (
-          <p className="px-4 py-3 text-sm text-zinc-500">Aucun changement de statut.</p>
+          <p className="px-4 py-3 text-sm text-muted-foreground">Aucun changement de statut.</p>
         )}
         {order.history.map((h) => (
           <div key={h.id} className="flex items-center justify-between border-b px-4 py-2 text-sm last:border-0">
             <span>
               {STATUS_LABEL[h.from ?? ""] ?? h.from ?? "—"} → {STATUS_LABEL[h.to] ?? h.to}
             </span>
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-muted-foreground">
               {h.actor?.email ?? "système"} · {new Date(h.createdAt).toLocaleString("fr-FR")}
             </span>
           </div>

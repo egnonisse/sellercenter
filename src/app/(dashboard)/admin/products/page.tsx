@@ -36,7 +36,7 @@ export default async function AdminProductsPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Produits à valider</h1>
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-muted-foreground">
             {products.length} produit(s) en attente de contrôle qualité
             {pendingSync > 0 && ` · ${pendingSync} en attente de sync WooCommerce`}
           </p>
@@ -68,7 +68,7 @@ export default async function AdminProductsPage() {
           <TableBody>
             {products.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-zinc-500">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Aucun produit en attente de validation.
                 </TableCell>
               </TableRow>
@@ -78,7 +78,7 @@ export default async function AdminProductsPage() {
                 <TableCell className="max-w-[280px] font-medium">
                   <div className="truncate">{p.name}</div>
                   {p.description && (
-                    <div className="truncate text-xs text-zinc-500">{p.description}</div>
+                    <div className="truncate text-xs text-muted-foreground">{p.description}</div>
                   )}
                 </TableCell>
                 <TableCell>{p.shop.name}</TableCell>
