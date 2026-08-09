@@ -2,12 +2,20 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { hasPermission } from "@/lib/rbac";
-import { logout } from "./actions";
+import { logout, switchAccountAction } from "./actions";
+
+// DEV ONLY : libellés des comptes de test pour le switcher (à retirer avant prod)
+const DEV_ACCOUNT_LABELS: Record<string, string> = {
+  "admin@zariamall.com": "Admin",
+  "kam@zariamall.com": "KAM",
+  "vendeur-test@example.com": "Vendor (test)",
+};
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
   const perms = session.user.permissions ?? [];
+  const devSwitcher = process.env.ALLOW_ACCOUNT_SWITCHING === "true";
 
   const canProducts = hasPermission(perms, "products.manage") || hasPermission(perms, "products.manage_all");
   const canOrders = hasPermission(perms, "orders.read") || hasPermission(perms, "orders.read_all");
@@ -84,6 +92,30 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </nav>
         <div className="border-t border-border p-3">
           <p className="mb-2 truncate px-3 text-xs text-muted-foreground">{session.user.email}</p>
+          {devSwitcher && (
+            <form action={switchAccountAction} className="mb-2 rounded-md border border-dashed border-amber-300 p-2">
+              <p className="mb-1 text-[10px] font-medium uppercase tracking-wide text-amber-600">
+                Dev : changer de compte
+              </p>
+              <select
+                name="email"
+                defaultValue={session.user.email ?? ""}
+                className="mb-1 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs focus:outline-none"
+              >
+                {Object.entries(DEV_ACCOUNT_LABELS).map(([email, label]) => (
+                  <option key={email} value={email}>
+                    {label} — {email}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="w-full rounded-md bg-primary px-2 py-1 text-xs font-medium text-primary-foreground"
+              >
+                Changer
+              </button>
+            </form>
+          )}
           <form action={logout}>
             <button
               type="submit"
