@@ -51,4 +51,5 @@ next-env.d.ts
 .agents/
 .claude/
 .windsurf/
+.hermes/
 skills-lock.json
