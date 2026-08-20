@@ -1,7 +1,6 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { verifyLogin } from "@/lib/login-security";
 import { loadPermissionsForRole } from "@/lib/load-permissions";
 import type { Role } from "@/generated/prisma/enums";
 import { authConfig } from "@/auth.config";
@@ -19,11 +18,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = typeof credentials?.password === "string" ? credentials.password : "";
         if (!email || !password) return null;
 
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || user.status !== "ACTIVE") return null;
-
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+        const user = await verifyLogin(email, password);
+        if (!user) return null;
 
         return {
           id: user.id,

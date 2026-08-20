@@ -116,10 +116,13 @@ model User {
   shopId       String?              // null pour SUPER_ADMIN
   shop         Shop?                @relation(fields: [shopId], references: [id])
   status       String               @default("ACTIVE")
+  failedAttempts Int               @default(0) // Échecs de connexion consécutifs (rate limiting login)
+  lockoutUntil DateTime?           // Verrouillage temporaire après trop d'échecs
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   orderHistory OrderStatusHistory[]
   productHistory ProductHistory[]
+  rateHistory CommissionRateHistory[]
 }
 
 // ===================== Catalogue =====================
@@ -135,6 +138,7 @@ model Category {
   commissionRate Float?     // % commission, nullable : hérite du parent, sinon défaut global
   createdAt      DateTime   @default(now())
   products       Product[]
+  rateHistory    CommissionRateHistory[]
 }
 
 model Product {
@@ -166,6 +170,7 @@ model Product {
   images          Json?         // [{url, position}]
   attributes      Json?         // {color, size, warranty...}
   syncStatus      SyncStatus    @default(PENDING)
+  syncError       String?       // message d'erreur de la dernière sync (affiché au vendeur)
   lastSyncedAt    DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -246,15 +251,16 @@ model Order {
 }
 
 model OrderItem {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product  @relation(fields: [productId], references: [id])
-  name      String
-  qty       Int
-  unitPrice Decimal  @db.Decimal(10, 2)
-  total     Decimal  @db.Decimal(10, 2)
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id])
+  productId      String
+  product        Product  @relation(fields: [productId], references: [id])
+  name           String
+  qty            Int
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  total          Decimal  @db.Decimal(10, 2)
+  commissionRate Float?   // taux figé au moment de la vente (null = calcul au relevé, rétrocompat)
   settlementLines SettlementLine[]
 
   @@index([orderId])
@@ -373,4 +379,21 @@ model Settings {
   id                   String  @id @default("global")
   defaultCommissionRate Float  @default(10)
   signupOpen           Boolean @default(true)
+}
+
+// Historique des taux de commission (audit + validité bi-temporelle simplifiée).
+// Une ligne = un taux appliqué sur une période ; la ligne active a validTo = null.
+// categoryId null = taux global (Settings.defaultCommissionRate).
+model CommissionRateHistory {
+  id          String   @id @default(cuid())
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  rate        Float
+  validFrom   DateTime
+  validTo     DateTime?
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([categoryId, validFrom])
 }
