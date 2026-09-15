@@ -90,6 +90,7 @@ export async function syncProduct(productId: string) {
       data: {
         wooId,
         syncStatus: "SYNCED",
+        syncError: null,
         lastSyncedAt: new Date(),
       },
     });
@@ -98,7 +99,7 @@ export async function syncProduct(productId: string) {
     const message = error instanceof Error ? error.message.slice(0, 300) : "Erreur inconnue";
     await prisma.product.update({
       where: { id: product.id },
-      data: { syncStatus: "ERROR" },
+      data: { syncStatus: "ERROR", syncError: message },
     });
     console.error(`syncProduct(${product.id}):`, message);
     return { synced: false, error: message };

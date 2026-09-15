@@ -3,88 +3,108 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
-import type { Prisma } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { submitProductAction, delistProductAction, bulkProductsAction } from "./actions";
+import { loadCategoryOptions } from "@/lib/products";
 import { formatSyncDelay } from "@/lib/sync-timing";
+import { STATUS_FILTERS } from "@/lib/product-ui";
+import {
+  buildProductOrderBy,
+  buildProductWhere,
+  expandCategoryIds,
+  parsePagination,
+  type ProductListParams,
+} from "@/lib/product-query";
+import { ProductsTable, type ProductRow, type QueryState } from "@/components/products/products-table";
 
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Brouillon",
-  PENDING_QC: "En validation",
-  ACTIVE: "Actif",
-  REJECTED: "Rejeté",
-  DELISTED: "Retiré",
-  DELETION_PENDING: "Suppression en attente",
-};
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
-  ACTIVE: "default",
-  PENDING_QC: "secondary",
-  REJECTED: "outline",
-  DELISTED: "outline",
-  DELETION_PENDING: "outline",
-  DRAFT: "secondary",
-};
-
-const STATUS_FILTERS = [
-  { value: "", label: "Tous" },
-  { value: "DRAFT", label: "Brouillon" },
-  { value: "PENDING_QC", label: "En validation" },
-  { value: "ACTIVE", label: "Actif" },
-  { value: "REJECTED", label: "Rejeté" },
-  { value: "DELISTED", label: "Retiré" },
-  { value: "DELETION_PENDING", label: "Suppression en attente" },
-];
+const inputCls =
+  "rounded-md border border-border bg-transparent px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring dark:bg-zinc-950";
 
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; q?: string }>;
+  searchParams: Promise<ProductListParams>;
 }) {
-  const { status = "", q = "" } = await searchParams;
+  const params = await searchParams;
   const session = await auth();
   if (!session?.user) redirect("/login");
 
   const isGlobal = hasPermission(session.user.permissions, "products.manage_all");
   const shopId = session.user.shopId;
+  const q = params.q?.trim() ?? "";
 
-  const where: Prisma.ProductWhereInput = {
-    ...(shopId ? { shopId } : {}),
-    ...(status ? { status: status as Prisma.ProductWhereInput["status"] } : {}),
-    ...(q ? { name: { contains: q.trim(), mode: "insensitive" } } : {}),
-  };
-
-  const [products, shop, counts] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: { category: { select: { name: true } } },
-      take: 200,
+  const categoryIds = await expandCategoryIds(params.categoryId);
+  const [categories, countByStatus, totalFiltered, rejectionStats] = await Promise.all([
+    loadCategoryOptions(),
+    prisma.product.groupBy({
+      by: ["status"],
+      where: shopId ? { shopId } : {},
+      _count: true,
     }),
-    shopId ? prisma.shop.findUnique({ where: { id: shopId } }) : Promise.resolve(null),
-    prisma.product.groupBy({ by: ["status"], where: shopId ? { shopId } : {}, _count: true }),
+    prisma.product.count({
+      where: buildProductWhere(shopId, params, categoryIds),
+    }),
+    prisma.product.groupBy({
+      by: ["qcReason"],
+      where: { ...(shopId ? { shopId } : {}), status: "REJECTED", qcReason: { not: null } },
+      _count: true,
+      orderBy: { _count: { qcReason: "desc" } },
+      take: 5,
+    }),
   ]);
 
-  const countByStatus: Record<string, number> = {};
-  for (const c of counts) countByStatus[c.status] = c._count;
+  const where = buildProductWhere(shopId, params, categoryIds);
+  const pageInfo = parsePagination(params, totalFiltered);
 
-  // Compte à rebours jusqu'au prochain créneau de sync (03:00 UTC) — recalculé à chaque chargement
+  const products = await prisma.product.findMany({
+    where,
+    orderBy: buildProductOrderBy(params),
+    include: { category: { select: { name: true } } },
+    skip: pageInfo.skip,
+    take: pageInfo.take,
+  });
+
+  const rows: ProductRow[] = products.map((p) => ({
+    id: p.id,
+    name: p.name,
+    sku: p.sku,
+    ean: p.ean,
+    brand: p.brand,
+    description: p.description,
+    categoryName: p.category.name,
+    price: Number(p.price),
+    stockQty: p.stockQty,
+    status: p.status,
+    syncStatus: p.syncStatus,
+    syncError: p.syncError,
+    images: Array.isArray(p.images) ? (p.images as { url: string }[]).map((i) => i.url) : [],
+    attributes: p.attributes,
+    createdAt: p.createdAt.toISOString(),
+  }));
+
+  const countByStatusMap: Record<string, number> = {};
+  for (const c of countByStatus) countByStatusMap[c.status] = c._count;
+  const totalAll = countByStatus.reduce((acc, c) => acc + c._count, 0);
   const syncDelay = formatSyncDelay();
 
-  const buildHref = (nextStatus: string) => {
-    const params = new URLSearchParams();
-    if (nextStatus) params.set("status", nextStatus);
-    if (q) params.set("q", q);
-    const s = params.toString();
+  const query: QueryState = {
+    status: params.status || undefined,
+    q: q || undefined,
+    category: params.categoryId || undefined,
+    brand: params.brand || undefined,
+    priceMin: params.priceMin || undefined,
+    priceMax: params.priceMax || undefined,
+    stockMax: params.stockMax || undefined,
+    hasImage: params.hasImage || undefined,
+    sort: params.sort || undefined,
+    dir: params.dir || undefined,
+    page: params.page || undefined,
+    perPage: params.perPage || undefined,
+  };
+
+  const buildHref = (overrides: Record<string, string | undefined>) => {
+    const merged = new URLSearchParams();
+    for (const [k, v] of Object.entries({ ...query, ...overrides })) if (v) merged.set(k, v);
+    const s = merged.toString();
     return s ? `/products?${s}` : "/products";
   };
 
@@ -94,8 +114,9 @@ export default async function ProductsPage({
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Gestion des produits</h1>
           <p className="text-sm text-muted-foreground">
-            {shop ? `${shop.name} — ` : ""}{products.length} produit(s)
+            {totalFiltered} produit(s)
             {q && ` · recherche « ${q} »`}
+            {pageInfo.total > pageInfo.perPage && ` · page ${pageInfo.page}`}
           </p>
         </div>
         {!isGlobal && (
@@ -120,10 +141,10 @@ export default async function ProductsPage({
       {/* KPI produits (pattern Jumia getProductKpis) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Total produits", value: products.length, accent: false },
-          { label: "Actifs", value: countByStatus.ACTIVE ?? 0, accent: true },
-          { label: "En validation", value: countByStatus.PENDING_QC ?? 0, accent: false },
-          { label: "Rejetés", value: countByStatus.REJECTED ?? 0, accent: false },
+          { label: "Total produits", value: totalAll, accent: false },
+          { label: "Actifs", value: countByStatusMap.ACTIVE ?? 0, accent: true },
+          { label: "En validation", value: countByStatusMap.PENDING_QC ?? 0, accent: false },
+          { label: "Rejetés", value: countByStatusMap.REJECTED ?? 0, accent: false },
         ].map((kpi) => (
           <div
             key={kpi.label}
@@ -135,15 +156,29 @@ export default async function ProductsPage({
         ))}
       </div>
 
-      {/* Filtres de statut (pills) */}
+      {/* Stats rejets (pattern : comprendre pourquoi mes produits sont rejetés) */}
+      {rejectionStats.length > 0 && (
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+          <strong>Pourquoi mes produits sont rejetés ?</strong>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+            {rejectionStats.map((r) => (
+              <li key={r.qcReason}>
+                {r.qcReason} ({r._count})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Filtres statut (pills) */}
       <div className="flex flex-wrap gap-2">
         {STATUS_FILTERS.map((f) => {
-          const active = status === f.value;
-          const count = f.value ? countByStatus[f.value] ?? 0 : products.length;
+          const active = (params.status ?? "") === f.value;
+          const count = f.value ? countByStatusMap[f.value] ?? 0 : totalAll;
           return (
             <Link
               key={f.value || "all"}
-              href={buildHref(f.value)}
+              href={buildHref({ status: f.value || undefined, page: undefined })}
               className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
                 active
                   ? "bg-primary text-primary-foreground"
@@ -157,143 +192,82 @@ export default async function ProductsPage({
         })}
       </div>
 
-      {/* Recherche par nom */}
-      <form method="GET" action="/products" className="flex max-w-md gap-2">
-        <input
-          type="search"
-          name="q"
-          defaultValue={q}
-          placeholder="Rechercher par nom de produit..."
-          className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        />
-        {status && <input type="hidden" name="status" value={status} />}
-        <Button type="submit" size="sm" variant="outline">
-          Rechercher
-        </Button>
-        {q && (
-          <Link href={buildHref(status)}>
+      {/* Recherche + filtres avancés */}
+      <form method="GET" action="/products" className="space-y-2 rounded-md border p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1">
+            <label className="mb-1 block text-xs text-muted-foreground">
+              Rechercher (nom, SKU, EAN, marque)
+            </label>
+            <input
+              type="search"
+              name="q"
+              defaultValue={q}
+              placeholder="Ex : GLTV5 ou 5901234123457..."
+              className={inputCls + " w-full"}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Catégorie</label>
+            <select name="categoryId" defaultValue={params.categoryId ?? ""} className={inputCls}>
+              <option value="">Toutes</option>
+              {categories.map((cat) => (
+                <optgroup key={cat.id} label={cat.name}>
+                  {cat.children.length > 0 ? (
+                    cat.children.map((child) => (
+                      <option key={child.id} value={child.id}>
+                        {child.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value={cat.id}>{cat.name}</option>
+                  )}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Marque</label>
+            <input name="brand" defaultValue={params.brand ?? ""} placeholder="Ex : Samsung" className={inputCls} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Prix min</label>
+            <input name="priceMin" type="number" min="0" defaultValue={params.priceMin ?? ""} placeholder="0" className={inputCls + " w-28"} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Prix max</label>
+            <input name="priceMax" type="number" min="0" defaultValue={params.priceMax ?? ""} placeholder="∞" className={inputCls + " w-28"} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Stock ≤</label>
+            <input name="stockMax" type="number" min="0" defaultValue={params.stockMax ?? ""} placeholder="faible" className={inputCls + " w-24"} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-muted-foreground">Images</label>
+            <select name="hasImage" defaultValue={params.hasImage ?? ""} className={inputCls}>
+              <option value="">Tous</option>
+              <option value="yes">Avec image</option>
+              <option value="no">Sans image</option>
+            </select>
+          </div>
+          <Button type="submit" size="sm" variant="outline">
+            Filtrer
+          </Button>
+          {Object.values(query).some(Boolean) && (
             <Button type="button" size="sm" variant="ghost">
-              Effacer
+              <Link href="/products">Effacer</Link>
             </Button>
-          </Link>
-        )}
+          )}
+        </div>
       </form>
 
-      {!isGlobal && (
-        <form id="bulk-form" action={bulkProductsAction} className="flex items-center gap-2">
-          <Button type="submit" name="bulkAction" value="submit" size="sm" variant="outline">
-            Soumettre la sélection
-          </Button>
-          <Button type="submit" name="bulkAction" value="delist" size="sm" variant="outline">
-            Retirer la sélection
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            cochez des produits pour agir en masse
-          </span>
-        </form>
-      )}
-
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {!isGlobal && <TableHead className="w-10" />}
-              <TableHead>Nom</TableHead>
-              <TableHead>SKU</TableHead>
-              <TableHead>Catégorie</TableHead>
-              <TableHead>Prix (FCFA)</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead>Statut</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {products.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  Aucun produit{status ? ` avec le statut « ${STATUS_LABEL[status] ?? status} »` : ""}
-                  {q ? ` pour « ${q} »` : ""}.{" "}
-                  {!isGlobal && (
-                    <Link href="/products/new" className="underline">
-                      Ajoutez votre premier produit
-                    </Link>
-                  )}
-                </TableCell>
-              </TableRow>
-            )}
-            {products.map((p) => (
-              <TableRow key={p.id}>
-                {!isGlobal && (
-                  <TableCell>
-                    <input
-                      type="checkbox"
-                      name="ids"
-                      value={p.id}
-                      form="bulk-form"
-                      className="h-4 w-4 rounded border-input"
-                    />
-                  </TableCell>
-                )}
-                <TableCell className="max-w-[280px] font-medium">
-                  <Link href={`/products/${p.id}`} className="hover:underline">
-                    {p.name}
-                  </Link>
-                  {p.syncStatus === "PENDING" && (
-                    <div className="text-[10px] text-amber-600">
-                      Passe en ligne dans {syncDelay}
-                    </div>
-                  )}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">{p.sku || "—"}</TableCell>
-                <TableCell>{p.category.name}</TableCell>
-                <TableCell>{Number(p.price).toLocaleString("fr-FR")}</TableCell>
-                <TableCell>{p.stockQty}</TableCell>
-                <TableCell>
-                  <Badge variant={STATUS_VARIANT[p.status] ?? "secondary"}>
-                    {STATUS_LABEL[p.status] ?? p.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-2">
-                    {!isGlobal && p.status !== "DELISTED" && p.status !== "DELETION_PENDING" && (
-                      <>
-                        <Link href={`/products/${p.id}/edit`}>
-                          <Button type="button" size="sm" variant="outline">
-                            Modifier
-                          </Button>
-                        </Link>
-                        {p.status === "DRAFT" || p.status === "REJECTED" ? (
-                          <form
-                            action={async () => {
-                              "use server";
-                              await submitProductAction(p.id);
-                            }}
-                          >
-                            <Button type="submit" size="sm">
-                              Soumettre
-                            </Button>
-                          </form>
-                        ) : (
-                          <form
-                            action={async () => {
-                              "use server";
-                              await delistProductAction(p.id);
-                            }}
-                          >
-                            <Button type="submit" size="sm" variant="outline">
-                              Retirer
-                            </Button>
-                          </form>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      <ProductsTable
+        products={rows}
+        isGlobal={isGlobal}
+        syncDelay={syncDelay}
+        query={query}
+        pageInfo={pageInfo}
+      />
     </div>
   );
 }

@@ -22,7 +22,12 @@ export default async function EditProductPage({
   if (!product) redirect("/products");
 
   const [categories, brands] = await Promise.all([loadCategoryOptions(), listBrands()]);
-  const attrs = (product.attributes as { color?: string; size?: string; warranty?: string } | null) ?? {};
+  const attrs = (product.attributes as {
+    color?: string;
+    size?: string;
+    warranty?: string;
+    custom?: { key: string; value: string }[];
+  } | null) ?? {};
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -49,7 +54,12 @@ export default async function EditProductPage({
           saleEndDate: product.saleEndDate ? product.saleEndDate.toISOString() : null,
           stockQty: product.stockQty,
           images: product.images,
-          attributes: { color: attrs.color ?? null, size: attrs.size ?? null, warranty: attrs.warranty ?? null },
+          attributes: {
+            color: attrs.color ?? null,
+            size: attrs.size ?? null,
+            warranty: attrs.warranty ?? null,
+            custom: attrs.custom ?? [],
+          },
         }}
         submitLabel="Enregistrer les modifications"
       />

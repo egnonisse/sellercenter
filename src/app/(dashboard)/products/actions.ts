@@ -1,21 +1,31 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { ZodError } from "zod";
 import { requirePermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@/generated/prisma/client";
 import {
   createProduct,
   updateProduct,
   submitProduct,
   delistProduct,
   requestProductDeletion,
+  duplicateProduct,
 } from "@/lib/products";
 import { logProductHistory } from "@/lib/product-history";
 
 export type ProductActionState = { error?: string } | undefined;
 
 function parseForm(formData: FormData) {
+  // Attributs custom : attr_key_0 / attr_value_0 ...
+  const custom: { key: string; value: string }[] = [];
+  for (let i = 0; i < 20; i++) {
+    const key = String(formData.get(`attr_key_${i}`) ?? "").trim();
+    const value = String(formData.get(`attr_value_${i}`) ?? "").trim();
+    if (key && value) custom.push({ key, value });
+  }
   return {
     name: String(formData.get("name") ?? ""),
     description: String(formData.get("description") ?? ""),
@@ -31,11 +41,29 @@ function parseForm(formData: FormData) {
     color: String(formData.get("color") ?? ""),
     size: String(formData.get("size") ?? ""),
     warranty: String(formData.get("warranty") ?? ""),
+    custom,
     images: String(formData.get("images") ?? ""),
   };
 }
 
 function toInput(f: ReturnType<typeof parseForm>) {
+  // Le formulaire envoie les URLs en JSON (liste visuelle) ; ancien format texte accepté
+  const rawImages = f.images.trim();
+  let images: string[] = [];
+  if (rawImages) {
+    if (rawImages.startsWith("[")) {
+      try {
+        images = JSON.parse(rawImages) as string[];
+      } catch {
+        images = [];
+      }
+    } else {
+      images = rawImages
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
   return {
     name: f.name,
     description: f.description,
@@ -48,11 +76,8 @@ function toInput(f: ReturnType<typeof parseForm>) {
     saleStartDate: f.saleStartDate,
     saleEndDate: f.saleEndDate,
     stockQty: Number(f.stockQty),
-    attributes: { color: f.color, size: f.size, warranty: f.warranty },
-    images: f.images
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean),
+    attributes: { color: f.color, size: f.size, warranty: f.warranty, custom: f.custom },
+    images,
   };
 }
 
@@ -61,6 +86,8 @@ function errorMessage(e: unknown): string {
   if (e instanceof Error) {
     if (e.message === "PRODUIT_INTROUVABLE") return "Produit introuvable.";
     if (e.message === "PRODUIT_DELETION_PENDING") return "Produit en cours de suppression.";
+    if (e.message === "PRODUIT_EAN_DUPLIQUE")
+      return "Ce code-barres EAN/GTIN est déjà utilisé par un autre produit de votre boutique.";
   }
   console.error("productAction:", e);
   return "Erreur inattendue. Réessayez.";
@@ -105,29 +132,27 @@ export async function updateProductAction(
   }
 }
 
-export async function submitProductAction(productId: string) {
+export async function submitProductAction(productId: string): Promise<void> {
   try {
     const user = await requirePermission("products.manage");
-    if (!user.shopId) return { error: "Boutique introuvable." };
+    if (!user.shopId) return;
     await submitProduct(user.shopId, productId);
     await logProductHistory({ productId, action: "SUBMITTED", to: "PENDING_QC", actorUserId: user.id });
     revalidatePath("/products");
-    return {};
   } catch (e) {
-    return { error: errorMessage(e) };
+    console.error("submitProductAction:", e);
   }
 }
 
-export async function delistProductAction(productId: string) {
+export async function delistProductAction(productId: string): Promise<void> {
   try {
     const user = await requirePermission("products.manage");
-    if (!user.shopId) return { error: "Boutique introuvable." };
+    if (!user.shopId) return;
     await delistProduct(user.shopId, productId);
     await logProductHistory({ productId, action: "DELISTED", to: "DELISTED", actorUserId: user.id });
     revalidatePath("/products");
-    return {};
   } catch (e) {
-    return { error: errorMessage(e) };
+    console.error("delistProductAction:", e);
   }
 }
 
@@ -226,5 +251,93 @@ export async function bulkProductsAction(formData: FormData): Promise<void> {
     revalidatePath("/products");
   } catch (e) {
     console.error("bulkProductsAction:", e);
+  }
+}
+
+// Édition en masse (pattern Jumia bulkEditPrices / bulkSetSaleDate) :
+// prix, ancien prix, stock et dates promo appliqués aux produits cochés.
+export async function bulkEditProductsAction(
+  _prev: ProductActionState,
+  formData: FormData,
+): Promise<ProductActionState> {
+  try {
+    const user = await requirePermission("products.manage");
+    if (!user.shopId) return { error: "Boutique introuvable." };
+
+    const ids = formData.getAll("ids").map(String);
+    if (ids.length === 0) return { error: "Sélectionnez au moins un produit." };
+
+    const owned = await prisma.product.count({ where: { id: { in: ids }, shopId: user.shopId } });
+    if (owned !== ids.length) return { error: "Produit invalide." };
+
+    const data: Prisma.ProductUpdateManyMutationInput = {};
+    const rawPrice = String(formData.get("bulkPrice") ?? "").trim();
+    const rawCompare = String(formData.get("bulkCompareAt") ?? "").trim();
+    const rawStock = String(formData.get("bulkStock") ?? "").trim();
+    const rawStart = String(formData.get("bulkSaleStart") ?? "").trim();
+    const rawEnd = String(formData.get("bulkSaleEnd") ?? "").trim();
+
+    if (rawPrice) {
+      const price = Number(rawPrice);
+      if (!Number.isFinite(price) || price <= 0) return { error: "Prix invalide." };
+      data.price = price;
+    }
+    if (rawCompare) {
+      const compareAtPrice = Number(rawCompare);
+      if (!Number.isFinite(compareAtPrice) || compareAtPrice <= 0) return { error: "Ancien prix invalide." };
+      data.compareAtPrice = compareAtPrice;
+    }
+    if (rawStock) {
+      const stockQty = Number(rawStock);
+      if (!Number.isInteger(stockQty) || stockQty < 0) return { error: "Stock invalide." };
+      data.stockQty = stockQty;
+    }
+    if (rawStart) data.saleStartDate = new Date(rawStart);
+    if (rawEnd) data.saleEndDate = new Date(rawEnd);
+    if (rawStart && rawEnd && new Date(rawStart) > new Date(rawEnd)) {
+      return { error: "La date de début doit précéder la fin de promo." };
+    }
+    if (Object.keys(data).length === 0) return { error: "Renseignez au moins un champ à modifier." };
+
+    data.status = "DRAFT";
+    data.syncStatus = "PENDING";
+
+    await prisma.$transaction([
+      prisma.product.updateMany({ where: { id: { in: ids }, shopId: user.shopId }, data }),
+      prisma.productHistory.createMany({
+        data: ids.map((id) => ({
+          productId: id,
+          action: "UPDATED",
+          to: "DRAFT",
+          note: "Édition en masse",
+          actorUserId: user.id,
+        })),
+      }),
+    ]);
+
+    revalidatePath("/products");
+    return {};
+  } catch (e) {
+    console.error("bulkEditProductsAction:", e);
+    return { error: "Erreur inattendue. Réessayez." };
+  }
+}
+
+// Duplication d'un produit (pattern Jumia) : copie en brouillon, ouvre l'édition de la copie.
+export async function duplicateProductAction(productId: string): Promise<void> {
+  try {
+    const user = await requirePermission("products.manage");
+    if (!user.shopId) return;
+    const copy = await duplicateProduct(user.shopId, productId);
+    await logProductHistory({
+      productId: copy.id,
+      action: "CREATED",
+      note: "Dupliqué depuis un produit existant",
+      actorUserId: user.id,
+    });
+    revalidatePath("/products");
+    redirect(`/products/${copy.id}/edit`);
+  } catch (e) {
+    console.error("duplicateProductAction:", e);
   }
 }

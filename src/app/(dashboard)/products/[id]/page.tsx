@@ -7,29 +7,14 @@ import { formatSyncDelay } from "@/lib/sync-timing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DelistForm } from "@/components/delist-form";
+import { productQualityScore } from "@/lib/product-quality";
+import { STATUS_LABEL, STATUS_VARIANT } from "@/lib/product-ui";
 import {
   submitProductAction,
   requestDeletionAction,
   delistProductWithReasonAction,
+  duplicateProductAction,
 } from "../actions";
-
-const STATUS_LABEL: Record<string, string> = {
-  DRAFT: "Brouillon",
-  PENDING_QC: "En validation",
-  ACTIVE: "Actif",
-  REJECTED: "Rejeté",
-  DELISTED: "Retiré",
-  DELETION_PENDING: "Suppression en attente",
-};
-
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline"> = {
-  ACTIVE: "default",
-  PENDING_QC: "secondary",
-  REJECTED: "outline",
-  DELISTED: "outline",
-  DELETION_PENDING: "outline",
-  DRAFT: "secondary",
-};
 
 const ACTION_LABEL: Record<string, string> = {
   CREATED: "Créé",
@@ -68,7 +53,21 @@ export default async function ProductDetailPage({
   const images = Array.isArray(product.images)
     ? (product.images as { url: string }[]).map((i) => i.url)
     : [];
-  const attrs = (product.attributes as { color?: string; size?: string; warranty?: string } | null) ?? {};
+  const attrs = (product.attributes as {
+    color?: string;
+    size?: string;
+    warranty?: string;
+    custom?: { key: string; value: string }[];
+  } | null) ?? {};
+  const quality = productQualityScore({
+    name: product.name,
+    description: product.description,
+    images: product.images,
+    brand: product.brand,
+    ean: product.ean,
+    attributes: attrs,
+    price: Number(product.price),
+  });
   const canSubmit = product.status === "DRAFT" || product.status === "REJECTED";
   const canEdit = product.status !== "DELISTED" && product.status !== "DELETION_PENDING";
   const canRequestDeletion = product.status !== "DELETION_PENDING";
@@ -87,11 +86,23 @@ export default async function ProductDetailPage({
             {STATUS_LABEL[product.status] ?? product.status}
           </Badge>
           {!isGlobal && canEdit && (
-            <Link href={`/products/${product.id}/edit`}>
-              <Button type="button" size="sm" variant="outline">
-                Modifier
-              </Button>
-            </Link>
+            <div className="flex flex-col items-end gap-2">
+              <Link href={`/products/${product.id}/edit`}>
+                <Button type="button" size="sm" variant="outline">
+                  Modifier
+                </Button>
+              </Link>
+              <form
+                action={async () => {
+                  "use server";
+                  await duplicateProductAction(product.id);
+                }}
+              >
+                <Button type="submit" size="sm" variant="ghost" title="Créer une copie en brouillon">
+                  Dupliquer
+                </Button>
+              </form>
+            </div>
           )}
           {!isGlobal && canSubmit && (
             <form
@@ -144,6 +155,28 @@ export default async function ProductDetailPage({
         </div>
       )}
 
+      {/* Score qualité d'annonce (pattern Jumia) */}
+      <div
+        className={`rounded-md border p-3 text-sm ${
+          quality.score >= 80
+            ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+            : quality.score >= 50
+              ? "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
+              : "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+        }`}
+      >
+        <strong>
+          Qualité de l&apos;annonce : {quality.score}/100 ({quality.label})
+        </strong>
+        <ul className="mt-1 grid list-inside gap-x-6 text-xs sm:grid-cols-2">
+          {quality.checks.map((c) => (
+            <li key={c.label} className={c.ok ? "" : "opacity-80"}>
+              {c.ok ? "✅" : "❌"} {c.label}
+            </li>
+          ))}
+        </ul>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-2">
         {images.length > 0 ? (
           <div className="space-y-2">
@@ -193,7 +226,7 @@ export default async function ProductDetailPage({
             )}
           </div>
 
-          {(attrs.color || attrs.size || attrs.warranty) && (
+          {(attrs.color || attrs.size || attrs.warranty || (attrs.custom?.length ?? 0) > 0) && (
             <div className="rounded-md border p-4 text-sm">
               <h2 className="mb-2 text-sm font-semibold">Caractéristiques</h2>
               <dl className="space-y-1 text-zinc-600 dark:text-zinc-400">
@@ -215,6 +248,12 @@ export default async function ProductDetailPage({
                     <dd>{attrs.warranty}</dd>
                   </div>
                 )}
+                {attrs.custom?.map((c, i) => (
+                  <div key={i} className="flex justify-between">
+                    <dt>{c.key}</dt>
+                    <dd>{c.value}</dd>
+                  </div>
+                ))}
               </dl>
             </div>
           )}
@@ -272,6 +311,14 @@ export default async function ProductDetailPage({
                       : `En attente — passe en ligne dans ${formatSyncDelay()}`}
                 </dd>
               </div>
+              {product.syncStatus === "ERROR" && product.syncError && (
+                <div className="flex justify-between">
+                  <dt>Erreur de sync</dt>
+                  <dd className="text-right text-red-600" title={product.syncError}>
+                    {product.syncError}
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between">
                 <dt>Créé le</dt>
                 <dd>{new Date(product.createdAt).toLocaleDateString("fr-FR")}</dd>

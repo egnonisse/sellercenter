@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { slugify } from "@/lib/slug";
 import { getOrCreateBrand } from "@/lib/brands";
+import { normalizeEan, isValidEan } from "@/lib/product-quality";
 
 // Validation des entrées produit
 export const productSchema = z.object({
@@ -10,7 +12,12 @@ export const productSchema = z.object({
   categoryId: z.string().min(1, "Catégorie requise"),
   brand: z.string().max(100).optional().or(z.literal("")),
   sku: z.string().max(64).optional().or(z.literal("")),
-  ean: z.string().max(32).optional().or(z.literal("")),
+  ean: z
+    .string()
+    .max(32)
+    .optional()
+    .or(z.literal(""))
+    .refine((v) => !v || isValidEan(v), "EAN/GTIN invalide (vérifier le code-barres)"),
   price: z.coerce.number().positive("Prix invalide").max(100_000_000),
   compareAtPrice: z.coerce.number().positive().max(100_000_000).optional().nullable(),
   saleStartDate: z.string().optional().or(z.literal("")),
@@ -22,6 +29,10 @@ export const productSchema = z.object({
       color: z.string().max(50).optional(),
       size: z.string().max(50).optional(),
       warranty: z.string().max(100).optional(),
+      custom: z
+        .array(z.object({ key: z.string().max(50), value: z.string().max(200) }))
+        .max(20)
+        .optional(),
     })
     .optional(),
 });
@@ -61,8 +72,40 @@ function toDates(d: ProductInput) {
 
 function attrsToJson(d: ProductInput) {
   const a = d.attributes;
-  const has = a && (a.color || a.size || a.warranty);
-  return has ? { color: a?.color || null, size: a?.size || null, warranty: a?.warranty || null } : undefined;
+  const custom = Array.isArray(a?.custom)
+    ? a!.custom.filter((c) => c.key.trim() && c.value.trim()).map((c) => ({ key: c.key.trim(), value: c.value.trim() }))
+    : [];
+  const has = a && (a.color || a.size || a.warranty || custom.length > 0);
+  if (!has) return undefined;
+  return {
+    color: a?.color || null,
+    size: a?.size || null,
+    warranty: a?.warranty || null,
+    ...(custom.length ? { custom } : {}),
+  };
+}
+
+// EAN/GTIN unique par boutique (comme le SKU). Retourne une erreur si déjà utilisé.
+async function assertEanAvailable(shopId: string, ean: string | null, excludeProductId?: string) {
+  const normalized = ean ? normalizeEan(ean) : "";
+  if (!normalized) return;
+  const dup = await prisma.product.findFirst({
+    where: {
+      shopId,
+      ean: { not: null },
+      NOT: excludeProductId ? { id: excludeProductId } : undefined,
+    },
+  });
+  // Comparaison normalisée : on liste les EAN de la boutique et on compare via SQL LIKE n'est pas fiable
+  // → vérification simple côté app pour les EAN exacts stockés normalisés au moment de la création.
+  const candidates = dup
+    ? await prisma.product.findMany({
+        where: { shopId, ean: { not: null } },
+        select: { id: true, ean: true },
+      })
+    : [];
+  const clash = candidates.find((c) => normalizeEan(c.ean ?? "") === normalized && c.id !== excludeProductId);
+  if (clash) throw new Error("PRODUIT_EAN_DUPLIQUE");
 }
 
 // Création : draft, rattaché à la boutique du user connecté.
@@ -70,6 +113,8 @@ export async function createProduct(shopId: string, input: ProductInput) {
   const data = productSchema.parse(input);
   const slug = await uniqueProductSlug(slugify(data.name));
   const brandId = data.brand ? await getOrCreateBrand(data.brand.trim()) : null;
+  const ean = data.ean ? normalizeEan(data.ean) : null;
+  await assertEanAvailable(shopId, ean);
 
   return prisma.product.create({
     data: {
@@ -81,7 +126,7 @@ export async function createProduct(shopId: string, input: ProductInput) {
       brand: data.brand || null,
       brandId,
       sku: data.sku || null,
-      ean: data.ean || null,
+      ean,
       price: data.price,
       compareAtPrice: data.compareAtPrice ?? null,
       ...toDates(data),
@@ -100,6 +145,8 @@ export async function updateProduct(shopId: string, productId: string, input: Pr
   if (!existing) throw new Error("PRODUIT_INTROUVABLE");
   if (existing.status === "DELETION_PENDING") throw new Error("PRODUIT_DELETION_PENDING");
   const brandId = data.brand ? await getOrCreateBrand(data.brand.trim()) : null;
+  const ean = data.ean ? normalizeEan(data.ean) : null;
+  await assertEanAvailable(shopId, ean, productId);
 
   return prisma.product.update({
     where: { id: productId },
@@ -110,7 +157,7 @@ export async function updateProduct(shopId: string, productId: string, input: Pr
       brand: data.brand || null,
       brandId,
       sku: data.sku || null,
-      ean: data.ean || null,
+      ean,
       price: data.price,
       compareAtPrice: data.compareAtPrice ?? null,
       ...toDates(data),
@@ -190,5 +237,41 @@ export async function restoreProduct(productId: string) {
   return prisma.product.update({
     where: { id: productId },
     data: { status: "DRAFT", deletionRequestedAt: null },
+  });
+}
+
+// Duplication (pattern Jumia) : copie complète en brouillon, slug/SKU adaptés.
+export async function duplicateProduct(shopId: string, productId: string) {
+  const source = await prisma.product.findFirst({ where: { id: productId, shopId } });
+  if (!source) throw new Error("PRODUIT_INTROUVABLE");
+
+  const slug = await uniqueProductSlug(`${slugify(source.name)}-copie`);
+  const baseSku = source.sku ? `${source.sku}-COPIE`.slice(0, 64) : null;
+  let sku = baseSku;
+  if (sku) {
+    const taken = await prisma.product.findFirst({ where: { shopId, sku } });
+    if (taken) sku = `${baseSku}-${Date.now().toString().slice(-4)}`.slice(0, 64);
+  }
+
+  return prisma.product.create({
+    data: {
+      shopId,
+      name: `${source.name} (copie)`,
+      slug,
+      description: source.description,
+      categoryId: source.categoryId,
+      brand: source.brand,
+      brandId: source.brandId,
+      sku,
+      ean: source.ean ? `${source.ean}-X`.slice(0, 32) : null, // l'EAN d'origine reste unique à la boutique
+      price: source.price,
+      compareAtPrice: source.compareAtPrice,
+      saleStartDate: source.saleStartDate,
+      saleEndDate: source.saleEndDate,
+      stockQty: source.stockQty,
+      images: (source.images ?? undefined) as Prisma.InputJsonValue | undefined,
+      attributes: (source.attributes ?? undefined) as Prisma.InputJsonValue | undefined,
+      status: "DRAFT",
+    },
   });
 }

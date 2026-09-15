@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ImageList } from "@/components/products/image-list";
 
 type CategoryOption = {
   id: string;
@@ -13,6 +14,8 @@ type CategoryOption = {
 };
 
 type BrandOption = { id: string; name: string };
+
+export type CustomAttr = { key: string; value: string };
 
 export type ProductInitial = {
   name: string;
@@ -27,7 +30,12 @@ export type ProductInitial = {
   saleEndDate: string | null;
   stockQty: number;
   images: unknown;
-  attributes: { color?: string | null; size?: string | null; warranty?: string | null } | null;
+  attributes: {
+    color?: string | null;
+    size?: string | null;
+    warranty?: string | null;
+    custom?: CustomAttr[] | null;
+  } | null;
 };
 
 type FormAction = (
@@ -37,49 +45,6 @@ type FormAction = (
 
 const inputCls =
   "w-full rounded-md border border-border bg-transparent px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring dark:border-zinc-800 dark:bg-zinc-950";
-
-function ImageUploader({ onUploaded }: { onUploaded: (url: string) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleFile(file: File) {
-    setBusy(true);
-    setError("");
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/products/image/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Upload échoué");
-      onUploaded(data.url);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload échoué");
-    } finally {
-      setBusy(false);
-      if (inputRef.current) inputRef.current.value = "";
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void handleFile(f);
-        }}
-      />
-      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => inputRef.current?.click()}>
-        {busy ? "Upload..." : "Uploader une image"}
-      </Button>
-      {error && <span className="text-xs text-red-600">{error}</span>}
-    </div>
-  );
-}
 
 export function ProductForm({
   categories,
@@ -95,12 +60,15 @@ export function ProductForm({
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
-  const [imagesText, setImagesText] = useState(
-    Array.isArray(initial?.images)
-      ? (initial!.images as { url?: string }[]).map((i) => i.url ?? "").join("\n")
-      : "",
-  );
   const attrs = initial?.attributes ?? {};
+  const initialImages = Array.isArray(initial?.images)
+    ? (initial!.images as { url?: string }[]).map((i) => i.url ?? "")
+    : [];
+  const [custom, setCustom] = useState<CustomAttr[]>(attrs.custom ?? []);
+
+  function updateCustom(i: number, field: keyof CustomAttr, value: string) {
+    setCustom((prev) => prev.map((c, j) => (j === i ? { ...c, [field]: value } : c)));
+  }
 
   return (
     <form action={formAction} className="space-y-5">
@@ -217,19 +185,48 @@ export function ProductForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="images">Images (URLs, une par ligne — max 8)</Label>
-        <textarea
-          id="images"
-          name="images"
-          value={imagesText}
-          onChange={(e) => setImagesText(e.target.value)}
-          rows={3}
-          className={inputCls}
-          placeholder={"https://.../image1.jpg\nhttps://.../image2.jpg"}
-        />
-        <ImageUploader
-          onUploaded={(url) => setImagesText((prev) => (prev ? `${prev}\n${url}` : url))}
-        />
+        <Label>Caractéristiques personnalisées (optionnel)</Label>
+        {custom.map((c, i) => (
+          <div key={i} className="flex gap-2">
+            <input
+              name={`attr_key_${i}`}
+              value={c.key}
+              onChange={(e) => updateCustom(i, "key", e.target.value)}
+              placeholder="Ex : Puissance"
+              className={inputCls}
+            />
+            <input
+              name={`attr_value_${i}`}
+              value={c.value}
+              onChange={(e) => updateCustom(i, "value", e.target.value)}
+              placeholder="Ex : 1500 W"
+              className={inputCls}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setCustom((prev) => prev.filter((_, j) => j !== i))}
+            >
+              ✕
+            </Button>
+          </div>
+        ))}
+        {custom.length < 20 && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setCustom((prev) => [...prev, { key: "", value: "" }])}
+          >
+            + Ajouter une caractéristique
+          </Button>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label>Images (max 8 — la 1ʳᵉ est la vignette principale)</Label>
+        <ImageList initial={initialImages} />
       </div>
 
       {state?.error && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
