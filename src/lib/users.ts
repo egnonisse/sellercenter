@@ -32,6 +32,13 @@ function appUrl(): string {
   return (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
 }
 
+// Garde-fou : un identifiant d'acteur absent (session/JWT incomplet) ferait échouer
+// Prisma avec un message obscur → on échoue ici avec un code explicite.
+function requireActor(actorUserId?: string | null): string {
+  if (!actorUserId) throw new Error("ACTEUR_INVALIDE");
+  return actorUserId;
+}
+
 // ---------------------------------------------------------------------------
 // Audit
 // ---------------------------------------------------------------------------
@@ -61,6 +68,7 @@ export async function createUserWithInvitation(
   input: InvitationInput & { actorUserId: string },
 ) {
   const data = invitationSchema.parse(input);
+  const actorId = requireActor(input.actorUserId);
   const email = data.email.toLowerCase().trim();
 
   // Boutique obligatoire pour les rôles vendeurs, interdite sinon
@@ -91,13 +99,13 @@ export async function createUserWithInvitation(
       status: "INVITED",
       inviteTokenHash: hashToken(token),
       inviteExpiresAt: expiresAt,
-      invitedByUserId: input.actorUserId,
+      invitedByUserId: actorId,
     },
   });
 
   await logAudit({
     targetUserId: user.id,
-    actorUserId: input.actorUserId,
+    actorUserId: actorId,
     action: "INVITED",
     details: { email, role: data.role, shopId: data.shopId ?? null },
   });
@@ -106,7 +114,7 @@ export async function createUserWithInvitation(
     ? await prisma.shop.findUnique({ where: { id: data.shopId }, select: { name: true } })
     : null;
   const actor = await prisma.user.findUnique({
-    where: { id: input.actorUserId },
+    where: { id: actorId },
     select: { email: true },
   });
 
@@ -124,6 +132,7 @@ export async function createUserWithInvitation(
 
 // Régénère un lien et renvoie l'invitation (utilisateur encore en INVITED).
 export async function resendInvitation(userId: string, actorUserId: string) {
+  const actorId = requireActor(actorUserId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("UTILISATEUR_INTROUVABLE");
   if (user.status !== "INVITED") throw new Error("DEJA_ACTIF");
@@ -135,7 +144,7 @@ export async function resendInvitation(userId: string, actorUserId: string) {
     where: { id: userId },
     data: { inviteTokenHash: hashToken(token), inviteExpiresAt: expiresAt },
   });
-  await logAudit({ targetUserId: userId, actorUserId, action: "INVITE_RESENT" });
+  await logAudit({ targetUserId: userId, actorUserId: actorId, action: "INVITE_RESENT" });
 
   const shop = user.shopId
     ? await prisma.shop.findUnique({ where: { id: user.shopId }, select: { name: true } })
@@ -188,6 +197,7 @@ export async function getInvitationByToken(token: string) {
 // ---------------------------------------------------------------------------
 
 export async function setUserRole(userId: string, role: Role, actorUserId: string) {
+  requireActor(actorUserId);
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("UTILISATEUR_INTROUVABLE");
   if (user.id === actorUserId) throw new Error("AUTO_MODIFICATION_INTERDITE");
@@ -205,6 +215,7 @@ export async function setUserRole(userId: string, role: Role, actorUserId: strin
 }
 
 export async function setUserStatus(userId: string, status: string, actorUserId: string) {
+  requireActor(actorUserId);
   if (!["ACTIVE", "SUSPENDED"].includes(status)) throw new Error("STATUT_INVALIDE");
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new Error("UTILISATEUR_INTROUVABLE");

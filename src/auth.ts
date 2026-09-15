@@ -39,11 +39,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.permissions = permissions;
         token.role = user.role;
         token.shopId = user.shopId;
+        token.uid = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
+        // L'identifiant n'est PAS recopié automatiquement par NextAuth : sans cette ligne
+        // session.user.id vaut undefined à l'exécution (le type le déclare pourtant).
+        session.user.id = (token.uid as string | undefined) ?? token.sub ?? "";
         session.user.permissions = (token.permissions as string[]) ?? [];
         session.user.role = (token.role as Role) ?? session.user.role;
         session.user.shopId = (token.shopId as string | null) ?? session.user.shopId;

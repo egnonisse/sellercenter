@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requirePermissionDb } from "@/lib/rbac";
 import {
   createUserWithInvitation,
@@ -23,11 +24,21 @@ const ERROR_MESSAGES: Record<string, string> = {
   STATUT_INVALIDE: "Statut invalide.",
   INVITATION_EN_ATTENTE: "Invitation en attente : l'utilisateur doit d'abord définir son mot de passe.",
   DEJA_ACTIF: "Ce compte est déjà actif.",
+  ACTEUR_INVALIDE: "Session incomplète : reconnectez-vous puis réessayez.",
+  CIBLE_NON_GEERABLE: "Cet utilisateur n'est pas gérable depuis cet espace.",
 };
 
 function toMessage(e: unknown, fallback: string): string {
   const code = e instanceof Error ? e.message : "";
-  return ERROR_MESSAGES[code] ?? fallback;
+  if (ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+  // Erreur de validation : afficher la contrainte précise
+  if (e instanceof z.ZodError) {
+    const issue = e.issues[0];
+    const field = issue?.path?.length ? ` (${issue.path.join(".")})` : "";
+    return `Données invalides : ${issue?.message ?? "valeur refusée"}${field}`;
+  }
+  // Erreur technique : garder un code court pour le diagnostic au lieu d'un message muet
+  return code && code.length <= 120 ? `${fallback} [${code}]` : fallback;
 }
 
 // Création d'un utilisateur + envoi de l'invitation par email

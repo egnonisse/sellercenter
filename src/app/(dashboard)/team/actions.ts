@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { requirePermissionDb } from "@/lib/rbac";
 import {
   createTeamMember,
@@ -17,11 +18,19 @@ const ERROR_MESSAGES: Record<string, string> = {
   DEJA_ACTIF: "Ce compte est déjà actif.",
   INVITATION_EN_ATTENTE: "Invitation en attente : le membre doit d'abord définir son mot de passe.",
   AUTO_MODIFICATION_INTERDITE: "Vous ne pouvez pas modifier votre propre compte.",
+  ACTEUR_INVALIDE: "Session incomplète : reconnectez-vous puis réessayez.",
+  BOUTIQUE_REQUISE: "Une boutique est obligatoire pour un rôle vendeur.",
 };
 
 function toMessage(e: unknown, fallback: string): string {
   const code = e instanceof Error ? e.message : "";
-  return ERROR_MESSAGES[code] ?? fallback;
+  if (ERROR_MESSAGES[code]) return ERROR_MESSAGES[code];
+  if (e instanceof z.ZodError) {
+    const issue = e.issues[0];
+    const field = issue?.path?.length ? ` (${issue.path.join(".")})` : "";
+    return `Données invalides : ${issue?.message ?? "valeur refusée"}${field}`;
+  }
+  return code && code.length <= 120 ? `${fallback} [${code}]` : fallback;
 }
 
 // Invite un employé (SHOP_MANAGER) pour SA boutique — le shopId vient de la session, jamais du formulaire

@@ -23,5 +23,6 @@ declare module "next-auth/jwt" {
     role?: AppRole;
     shopId?: string | null;
     permissions?: string[];
+    uid?: string;
   }
 }
