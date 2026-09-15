@@ -25,10 +25,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const canQc = hasPermission(perms, "products.qc");
   const canRoles = hasPermission(perms, "roles.manage");
   const canSettings = hasPermission(perms, "settings.manage");
+  const canUsers = hasPermission(perms, "users.manage");
+  const canTeam = hasPermission(perms, "team.manage") && Boolean(session.user.shopId);
 
   const unread = session.user.shopId ? await countUnreadNotifications(session.user.shopId) : 0;
 
   const adminItems = [
+    ...(canUsers ? [{ label: "Utilisateurs", href: "/admin/users" }] : []),
     ...(canSellers ? [{ label: "Vendeurs", href: "/admin/sellers" }] : []),
     ...(canQc ? [{ label: "Produits à valider", href: "/admin/products" }] : []),
     ...(canSettings ? [{ label: "Réglages plateforme", href: "/admin/settings" }] : []),
@@ -100,6 +103,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
               className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
             >
               Paramètres boutique
+            </Link>
+          )}
+          {canTeam && (
+            <Link
+              href="/team"
+              className="flex items-center rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-muted"
+            >
+              Mon équipe
             </Link>
           )}
           {[

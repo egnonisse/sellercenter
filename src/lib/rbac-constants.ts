@@ -16,6 +16,8 @@ export const PERMISSIONS: { name: string; label: string; group: string }[] = [
   { name: "finance.manage_all", label: "Gérer les relevés (marquer payé)", group: "Finances" },
   { name: "settings.manage", label: "Configurer la plateforme", group: "Plateforme" },
   { name: "roles.manage", label: "Gérer les rôles & permissions", group: "Plateforme" },
+  { name: "users.manage", label: "Créer / gérer les utilisateurs", group: "Plateforme" },
+  { name: "team.manage", label: "Gérer l'équipe de sa boutique", group: "Plateforme" },
 ];
 
 export const PERMISSION_NAMES = PERMISSIONS.map((p) => p.name);
@@ -30,7 +32,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
     "orders.manage_all",
     "finance.read_all",
   ],
-  SHOP_ADMIN: ["products.manage", "orders.read", "orders.manage", "finance.read_all"],
+  SHOP_ADMIN: ["products.manage", "orders.read", "orders.manage", "finance.read_all", "team.manage"],
   SHOP_MANAGER: ["products.manage", "orders.read", "orders.manage"],
 };
 
@@ -41,6 +43,8 @@ export const SENSITIVE_PERMISSIONS = new Set([
   "sellers.approve",
   "roles.manage",
   "products.sync",
+  "users.manage",
+  "team.manage",
 ]);
 
 export type AppRole = "SUPER_ADMIN" | "KAM" | "SHOP_ADMIN" | "SHOP_MANAGER";
