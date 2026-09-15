@@ -50,42 +50,41 @@
 
 :root {
   /* Palette SellerCenter (LEO) :
-     1. Primaire (Accent)      : #FF4800 — CTA, éléments mis en avant
-     2. Texte principal        : rgb(118,118,118) — corps de texte
-     3. Titres & Liens         : #333333 — lisibilité maximale
-     4. Arrière-plan alternatif: rgb(243,243,243) — boutons/sections secondaires */
+     1. Primaire (Accent)      : #ff3e2a — CTA, éléments mis en avant
+     2. Texte principal        : #000000 — lisibilité maximale
+     3. Arrière-plan alternatif: rgb(243,243,243) — boutons/sections secondaires */
   --background: #ffffff;
-  --foreground: #333333;
+  --foreground: #000000;
   --card: #ffffff;
-  --card-foreground: #333333;
+  --card-foreground: #000000;
   --popover: #ffffff;
-  --popover-foreground: #333333;
-  --primary: #ff4800;
+  --popover-foreground: #000000;
+  --primary: #ff3e2a;
   --primary-foreground: #ffffff;
   --secondary: rgb(243, 243, 243);
-  --secondary-foreground: #333333;
+  --secondary-foreground: #000000;
   --muted: rgb(243, 243, 243);
   --muted-foreground: rgb(118, 118, 118);
   --accent: rgb(243, 243, 243);
-  --accent-foreground: #333333;
+  --accent-foreground: #000000;
   --destructive: #dc2626;
   --border: #e5e5e5;
   --input: #e5e5e5;
-  --ring: #ff4800;
-  --chart-1: #ff4800;
+  --ring: #ff3e2a;
+  --chart-1: #ff3e2a;
   --chart-2: rgb(118, 118, 118);
-  --chart-3: #333333;
+  --chart-3: #000000;
   --chart-4: #e8a020;
   --chart-5: #7a4a2b;
-  --radius: 0.625rem;
+  --radius: 5px;
   --sidebar: #ffffff;
-  --sidebar-foreground: #333333;
-  --sidebar-primary: #ff4800;
+  --sidebar-foreground: #000000;
+  --sidebar-primary: #ff3e2a;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: rgb(243, 243, 243);
-  --sidebar-accent-foreground: #333333;
+  --sidebar-accent-foreground: #000000;
   --sidebar-border: #e5e5e5;
-  --sidebar-ring: #ff4800;
+  --sidebar-ring: #ff3e2a;
 }
 
 .dark {
@@ -95,7 +94,7 @@
   --card-foreground: rgb(243, 243, 243);
   --popover: #1f1f1f;
   --popover-foreground: rgb(243, 243, 243);
-  --primary: #ff4800;
+  --primary: #ff3e2a;
   --primary-foreground: #ffffff;
   --secondary: #2a2a2a;
   --secondary-foreground: rgb(243, 243, 243);
@@ -106,20 +105,20 @@
   --destructive: #ef4444;
   --border: rgb(255, 255, 255 / 10%);
   --input: rgb(255, 255, 255 / 15%);
-  --ring: #ff4800;
-  --chart-1: #ff4800;
+  --ring: #ff3e2a;
+  --chart-1: #ff3e2a;
   --chart-2: #a3a3a3;
   --chart-3: #f3f3f3;
   --chart-4: #e8a020;
   --chart-5: #7a4a2b;
   --sidebar: #1f1f1f;
   --sidebar-foreground: rgb(243, 243, 243);
-  --sidebar-primary: #ff4800;
+  --sidebar-primary: #ff3e2a;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #2a2a2a;
   --sidebar-accent-foreground: rgb(243, 243, 243);
   --sidebar-border: rgb(255, 255, 255 / 10%);
-  --sidebar-ring: #ff4800;
+  --sidebar-ring: #ff3e2a;
 }
 
 @layer base {
