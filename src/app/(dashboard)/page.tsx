@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { resolveShopScope } from "@/lib/shop-assignment";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +27,13 @@ export default async function DashboardPage() {
   const canReadSellers = hasPermission(perms, "sellers.read");
   const canReadAllOrders = hasPermission(perms, "orders.read_all");
   const isVendor = !canReadSellers && !canQc;
+
+  // Périmètre : un KAM ne supervise que son portefeuille, l'admin voit tout
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
 
   // ---------- Vue VENDOR ----------
   if (isVendor) {
@@ -65,12 +73,15 @@ export default async function DashboardPage() {
     );
   }
 
-  // ---------- Vue KAM / ADMIN : données globales ----------
+  // ---------- Vue KAM / ADMIN : données du périmètre ----------
   const [sellers, pendingSellers, pendingQcCount, pendingDeletions, totalOrders, revenueByShop] = await Promise.all([
     prisma.seller.findMany({
+      // Un KAM ne voit que les vendeurs dont il suit au moins une boutique
+      where: scope.isGlobal ? {} : { shops: { some: { id: { in: scope.shopIds } } } },
       orderBy: { createdAt: "desc" },
       include: {
         shops: {
+          where: scope.isGlobal ? {} : { id: { in: scope.shopIds } },
           include: {
             _count: {
               select: {
@@ -85,11 +96,13 @@ export default async function DashboardPage() {
     canApproveSellers ? prisma.seller.count({ where: { status: "PENDING" } }) : Promise.resolve(0),
     canQc ? prisma.product.count({ where: { status: "PENDING_QC" } }) : Promise.resolve(0),
     canQc ? prisma.product.count({ where: { status: "DELETION_PENDING" } }) : Promise.resolve(0),
-    canReadAllOrders ? prisma.order.count() : Promise.resolve(0),
+    canReadAllOrders
+      ? prisma.order.count({ where: scope.isGlobal ? {} : { shopId: { in: scope.shopIds } } })
+      : Promise.resolve(0),
     canReadAllOrders
       ? prisma.order.groupBy({
           by: ["shopId"],
-          where: { status: "DELIVERED" },
+          where: { status: "DELIVERED", ...(scope.isGlobal ? {} : { shopId: { in: scope.shopIds } }) },
           _sum: { total: true },
         })
       : Promise.resolve([]),

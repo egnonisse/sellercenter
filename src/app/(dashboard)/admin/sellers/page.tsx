@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { hasPermission } from "@/lib/rbac";
+import { resolveShopScope } from "@/lib/shop-assignment";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -18,6 +19,8 @@ import {
   suspendSellerAction,
   activateSellerAction,
 } from "./actions";
+import { KamAssignForm } from "@/components/admin/kam-assign-form";
+import { listActiveAssignments, listActiveKams } from "@/lib/shop-assignment";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: "En attente",
@@ -32,14 +35,31 @@ export default async function AdminSellersPage() {
   // Lecture pour le KAM (supervision), approbations pour qui a la permission
   if (!hasPermission(perms, "sellers.read")) redirect("/");
 
+  // Un KAM ne voit que les vendeurs de son portefeuille ; l'admin voit tout
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
   const sellers = await prisma.seller.findMany({
+    where: scope.isGlobal ? {} : { shops: { some: { id: { in: scope.shopIds } } } },
     orderBy: { createdAt: "desc" },
-    include: { shops: true },
+    include: {
+      shops: scope.isGlobal ? true : { where: { id: { in: scope.shopIds } } },
+    },
   });
 
   const pending = sellers.filter((s) => s.status === "PENDING");
   const canApprove = hasPermission(perms, "sellers.approve");
   const canSuspend = hasPermission(perms, "sellers.suspend");
+  const canAssign = hasPermission(perms, "shops.assign");
+
+  // Chargé de comptes (KAM) en poste pour chaque boutique
+  const [kams, activeAssignments] = await Promise.all([
+    canAssign ? listActiveKams() : Promise.resolve([]),
+    listActiveAssignments(),
+  ]);
+  const kamByShop = new Map(activeAssignments.map((a) => [a.shopId, a.kam]));
 
   return (
     <div className="space-y-6">
@@ -57,7 +77,7 @@ export default async function AdminSellersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Vendeur</TableHead>
-              <TableHead>Boutique</TableHead>
+              <TableHead>Boutique &amp; chargé de comptes</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Inscrit le</TableHead>
               <TableHead>Statut</TableHead>
@@ -75,7 +95,27 @@ export default async function AdminSellersPage() {
             {sellers.map((seller) => (
               <TableRow key={seller.id}>
                 <TableCell className="font-medium">{seller.name}</TableCell>
-                <TableCell>{seller.shops.map((s) => s.name).join(", ") || "—"}</TableCell>
+                <TableCell>
+                  {seller.shops.length === 0 && "—"}
+                  <div className="space-y-3">
+                    {seller.shops.map((s) => (
+                      <div key={s.id} className="space-y-1">
+                        <div className="text-sm font-medium">{s.name}</div>
+                        {canAssign ? (
+                          <KamAssignForm
+                            shopId={s.id}
+                            kams={kams}
+                            currentKamId={kamByShop.get(s.id)?.id ?? null}
+                          />
+                        ) : (
+                          <div className="text-xs text-muted-foreground">
+                            KAM : {kamByShop.get(s.id)?.email ?? "aucun"}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </TableCell>
                 <TableCell>
                   <div className="text-sm">{seller.email}</div>
                   <div className="text-xs text-muted-foreground">{seller.phone}</div>

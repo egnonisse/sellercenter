@@ -50,14 +50,16 @@ export async function expandCategoryIds(categoryId?: string): Promise<string[] |
   return [cat.id, ...cat.children.map((c) => c.id)];
 }
 
+// `scopeWhere` = filtre imposé par le périmètre de l'utilisateur (boutique, portefeuille KAM
+// ou aucun filtre pour un admin) — il est fusionné avant les filtres de l'interface.
 export function buildProductWhere(
-  shopId: string | null,
+  scopeWhere: Prisma.ProductWhereInput,
   params: ProductListParams,
   categoryIds?: string[],
 ): Prisma.ProductWhereInput {
   const q = params.q?.trim();
   const where: Prisma.ProductWhereInput = {
-    ...(shopId ? { shopId } : {}),
+    ...scopeWhere,
     ...(params.status ? { status: params.status as Prisma.ProductWhereInput["status"] } : {}),
     ...(categoryIds?.length ? { categoryId: { in: categoryIds } } : {}),
     ...(params.brand?.trim()

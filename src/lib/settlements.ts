@@ -87,10 +87,11 @@ export async function generateAllSettlements(periodStart: Date, periodEnd: Date)
   return results;
 }
 
-// Relevés (vendeur → sa boutique, sinon tous)
-export async function listSettlements(shopId: string | null) {
+// Relevés selon le périmètre : `null` = toutes les boutiques (admin),
+// un tableau = les boutiques du périmètre (portefeuille KAM ou boutique du vendeur).
+export async function listSettlements(shopIds: string[] | null) {
   return prisma.settlement.findMany({
-    where: shopId ? { shopId } : undefined,
+    where: shopIds ? { shopId: { in: shopIds } } : undefined,
     orderBy: { periodEnd: "desc" },
     include: { shop: { select: { name: true } }, _count: { select: { lines: true } } },
   });

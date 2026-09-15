@@ -1,8 +1,9 @@
 import { auth } from "@/auth";
 import { hasPermission } from "@/lib/rbac";
+import { resolveShopScope } from "@/lib/shop-assignment";
 import { prisma } from "@/lib/prisma";
 
-// Export CSV des relevés (vendeur → sa boutique, sinon tous)
+// Export CSV des relevés, limité au périmètre de l'utilisateur
 export async function GET() {
   const session = await auth();
   if (!session?.user) return new Response("Unauthorized", { status: 401 });
@@ -10,9 +11,13 @@ export async function GET() {
     return new Response("Forbidden", { status: 403 });
   }
 
-  const shopId = session.user.shopId ?? null;
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
   const settlements = await prisma.settlement.findMany({
-    where: shopId ? { shopId } : undefined,
+    where: scope.isGlobal ? undefined : { shopId: { in: scope.shopIds } },
     orderBy: { periodEnd: "desc" },
     include: { shop: { select: { name: true } } },
   });

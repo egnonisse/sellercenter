@@ -18,7 +18,7 @@ async function main() {
   const shopId = shop?.id ?? (await prisma.shop.findFirst())!.id;
   console.log("shop test:", shop?.slug ?? shopId);
 
-  const whereQ = buildProductWhere(shopId, { q: "tele" });
+  const whereQ = buildProductWhere({ shopId: { in: [shopId] } }, { q: "tele" });
   const hits = await prisma.product.count({ where: whereQ });
   console.log("recherche 'tele':", hits, "produits");
 
@@ -35,7 +35,7 @@ async function main() {
   console.log("tri prix asc — 1er:", first?.name, Number(first?.price ?? 0));
 
   // 5. Filtre stock bas + images
-  const whereStock = buildProductWhere(shopId, { stockMax: "5" });
+  const whereStock = buildProductWhere({ shopId: { in: [shopId] } }, { stockMax: "5" });
   const lowStock = await prisma.product.count({ where: whereStock });
   console.log("produits stock ≤ 5:", lowStock);
 

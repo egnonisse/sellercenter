@@ -106,6 +106,7 @@ model Shop {
   apiApplications  ApiApplication[]
   importHistory    ImportHistory[]
   notifications    Notification[]
+  assignments      ShopAssignment[]
 }
 
 model User {
@@ -131,6 +132,26 @@ model User {
   rateHistory CommissionRateHistory[]
   auditLogs    UserAudit[]         @relation("UserAuditTarget")
   auditActions UserAudit[]         @relation("UserAuditActor")
+  kamAssignments     ShopAssignment[] @relation("KamAssignments")
+  kamAssignmentsMade ShopAssignment[] @relation("KamAssignedBy")
+}
+
+// Affectation d'une boutique à un KAM (responsable unique : un seul actif à la fois).
+// Les lignes ne sont jamais supprimées : unassignedAt marque la fin du mandat
+// (on sait qui gérait la boutique et quand).
+model ShopAssignment {
+  id               String    @id @default(cuid())
+  shopId           String
+  shop             Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  kamUserId        String
+  kam              User      @relation("KamAssignments", fields: [kamUserId], references: [id])
+  assignedByUserId String?
+  assignedBy       User?     @relation("KamAssignedBy", fields: [assignedByUserId], references: [id])
+  assignedAt       DateTime  @default(now())
+  unassignedAt     DateTime? // null = affectation active
+
+  @@index([shopId])
+  @@index([kamUserId])
 }
 
 // Audit des opérations sur les utilisateurs (qui a créé / changé quel compte)

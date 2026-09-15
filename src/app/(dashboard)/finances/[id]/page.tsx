@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { hasPermission } from "@/lib/rbac";
+import { canAccessShop, resolveShopScope } from "@/lib/shop-assignment";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,6 +31,11 @@ export default async function SettlementDetailPage({
   const perms = session.user.permissions ?? [];
   if (!hasPermission(perms, "finance.read_all")) redirect("/");
 
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
   const settlement = await prisma.settlement.findUnique({
     where: { id },
     include: {
@@ -42,9 +48,8 @@ export default async function SettlementDetailPage({
     },
   });
   if (!settlement) redirect("/finances");
-
-  const isGlobal = !session.user.shopId;
-  if (!isGlobal && settlement.shopId !== session.user.shopId) redirect("/finances");
+  // Cloisonnement : un KAM ne consulte que les relevés de son portefeuille
+  if (!canAccessShop(scope, settlement.shopId)) redirect("/finances");
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

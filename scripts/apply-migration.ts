@@ -6,10 +6,19 @@ import fs from "fs";
 import path from "path";
 import pg from "pg";
 
-const NAME = "20260820170000_user_invitations_audit";
+const NAME = process.argv[2];
 
 async function main() {
+  if (!NAME) {
+    console.error("Usage : npx tsx scripts/apply-migration.ts <dossier_de_migration>");
+    console.error("Exemple : npx tsx scripts/apply-migration.ts 20260915120000_shop_assignments_kam");
+    process.exit(1);
+  }
   const file = path.join("prisma", "migrations", NAME, "migration.sql");
+  if (!fs.existsSync(file)) {
+    console.error(`❌ Introuvable : ${file}`);
+    process.exit(1);
+  }
   const sql = fs.readFileSync(file, "utf-8");
   const checksum = crypto.createHash("sha256").update(sql).digest("hex");
 
@@ -21,7 +30,7 @@ async function main() {
     [NAME],
   );
   if (existing.rowCount) {
-    console.log("Migration déjà appliquée — rien à faire.");
+    console.log(`Migration ${NAME} déjà appliquée — rien à faire.`);
     await client.end();
     return;
   }
@@ -41,15 +50,8 @@ async function main() {
     throw e;
   }
 
-  // Vérification : colonnes + table
-  const cols = await client.query(
-    "SELECT column_name FROM information_schema.columns WHERE table_name = 'User' AND column_name IN ('inviteTokenHash','inviteExpiresAt','invitedByUserId') ORDER BY column_name",
-  );
-  console.log("Nouvelles colonnes User:", cols.rows.map((r) => r.column_name).join(", "));
-  const t = await client.query("SELECT to_regclass('public.\"UserAudit\"') AS t");
-  console.log("Table UserAudit:", t.rows[0].t);
-
   await client.end();
+  console.log("Enchaîner : npx prisma generate (le client doit connaître le nouveau modèle)");
 }
 
 main().catch((e) => {

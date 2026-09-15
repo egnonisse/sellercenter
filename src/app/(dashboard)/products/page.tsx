@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { hasPermission } from "@/lib/rbac";
+import { resolveShopScope, scopeFilter } from "@/lib/shop-assignment";
 import { Button } from "@/components/ui/button";
 import { loadCategoryOptions } from "@/lib/products";
 import { formatSyncDelay } from "@/lib/sync-timing";
@@ -28,8 +28,14 @@ export default async function ProductsPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isGlobal = hasPermission(session.user.permissions, "products.manage_all");
-  const shopId = session.user.shopId;
+  // Périmètre de visibilité : admin = tout · KAM = son portefeuille · vendeur = sa boutique
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
+  const isGlobal = scope.isGlobal;
+  const scopeWhere = scopeFilter(scope);
   const q = params.q?.trim() ?? "";
 
   const categoryIds = await expandCategoryIds(params.categoryId);
@@ -37,22 +43,22 @@ export default async function ProductsPage({
     loadCategoryOptions(),
     prisma.product.groupBy({
       by: ["status"],
-      where: shopId ? { shopId } : {},
+      where: scopeWhere,
       _count: true,
     }),
     prisma.product.count({
-      where: buildProductWhere(shopId, params, categoryIds),
+      where: buildProductWhere(scopeWhere, params, categoryIds),
     }),
     prisma.product.groupBy({
       by: ["qcReason"],
-      where: { ...(shopId ? { shopId } : {}), status: "REJECTED", qcReason: { not: null } },
+      where: { ...scopeWhere, status: "REJECTED", qcReason: { not: null } },
       _count: true,
       orderBy: { _count: { qcReason: "desc" } },
       take: 5,
     }),
   ]);
 
-  const where = buildProductWhere(shopId, params, categoryIds);
+  const where = buildProductWhere(scopeWhere, params, categoryIds);
   const pageInfo = parsePagination(params, totalFiltered);
 
   const products = await prisma.product.findMany({

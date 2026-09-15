@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { hasPermission, requirePermission } from "@/lib/rbac";
+import { hasPermission } from "@/lib/rbac";
+import { resolveShopScope } from "@/lib/shop-assignment";
 import { listSettlements } from "@/lib/settlements";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,12 +32,15 @@ export default async function FinancesPage() {
   const perms = session.user.permissions ?? [];
   if (!hasPermission(perms, "finance.read_all")) redirect("/");
 
-  const user = await requirePermission("finance.read_all");
-  const isGlobal = !user.shopId;
-  const shopId = isGlobal ? null : user.shopId;
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
+  const isGlobal = scope.isGlobal;
   const canManage = hasPermission(perms, "finance.manage_all");
 
-  const settlements = await listSettlements(shopId);
+  const settlements = await listSettlements(isGlobal ? null : scope.shopIds);
 
   return (
     <div className="space-y-6">

@@ -2,22 +2,39 @@
 
 export const PERMISSIONS: { name: string; label: string; group: string }[] = [
   { name: "products.manage", label: "Gérer ses produits", group: "Produits" },
-  { name: "products.manage_all", label: "Gérer les produits de toutes les boutiques", group: "Produits" },
+  {
+    name: "products.manage_all",
+    label: "Gérer les produits de tout son périmètre (toutes les boutiques ; son portefeuille pour un KAM)",
+    group: "Produits",
+  },
   { name: "products.qc", label: "Valider / rejeter les produits (QC)", group: "Produits" },
   { name: "products.sync", label: "Synchroniser vers WooCommerce", group: "Produits" },
-  { name: "sellers.read", label: "Voir tous les vendeurs", group: "Vendeurs" },
+  { name: "sellers.read", label: "Voir les vendeurs de son périmètre", group: "Vendeurs" },
   { name: "sellers.approve", label: "Approuver / rejeter les inscriptions", group: "Vendeurs" },
   { name: "sellers.suspend", label: "Suspendre / activer un vendeur", group: "Vendeurs" },
   { name: "orders.read", label: "Voir les commandes de sa boutique", group: "Commandes" },
   { name: "orders.manage", label: "Changer le statut des commandes", group: "Commandes" },
-  { name: "orders.read_all", label: "Voir les commandes de toutes les boutiques", group: "Commandes" },
-  { name: "orders.manage_all", label: "Gérer les commandes de toutes les boutiques", group: "Commandes" },
-  { name: "finance.read_all", label: "Voir les finances de toutes les boutiques", group: "Finances" },
+  {
+    name: "orders.read_all",
+    label: "Voir les commandes de tout son périmètre",
+    group: "Commandes",
+  },
+  {
+    name: "orders.manage_all",
+    label: "Gérer les commandes de tout son périmètre",
+    group: "Commandes",
+  },
+  { name: "finance.read_all", label: "Voir les finances de tout son périmètre", group: "Finances" },
   { name: "finance.manage_all", label: "Gérer les relevés (marquer payé)", group: "Finances" },
   { name: "settings.manage", label: "Configurer la plateforme", group: "Plateforme" },
   { name: "roles.manage", label: "Gérer les rôles & permissions", group: "Plateforme" },
   { name: "users.manage", label: "Créer / gérer les utilisateurs", group: "Plateforme" },
   { name: "team.manage", label: "Gérer l'équipe de sa boutique", group: "Plateforme" },
+  {
+    name: "shops.assign",
+    label: "Attribuer les boutiques aux KAM (portefeuilles)",
+    group: "Vendeurs",
+  },
 ];
 
 export const PERMISSION_NAMES = PERMISSIONS.map((p) => p.name);
@@ -45,6 +62,7 @@ export const SENSITIVE_PERMISSIONS = new Set([
   "products.sync",
   "users.manage",
   "team.manage",
+  "shops.assign",
 ]);
 
 export type AppRole = "SUPER_ADMIN" | "KAM" | "SHOP_ADMIN" | "SHOP_MANAGER";

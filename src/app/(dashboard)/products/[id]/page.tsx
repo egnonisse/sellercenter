@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { hasPermission } from "@/lib/rbac";
+import { canAccessShop, resolveShopScope } from "@/lib/shop-assignment";
 import { formatSyncDelay } from "@/lib/sync-timing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -38,7 +38,12 @@ export default async function ProductDetailPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isGlobal = hasPermission(session.user.permissions, "products.manage_all");
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
+  const isGlobal = scope.isGlobal;
   const product = await prisma.product.findUnique({
     where: { id },
     include: {
@@ -48,7 +53,8 @@ export default async function ProductDetailPage({
     },
   });
   if (!product) redirect("/products");
-  if (!isGlobal && product.shopId !== session.user.shopId) redirect("/products");
+  // Cloisonnement : un KAM ne sort pas de son portefeuille, un vendeur de sa boutique
+  if (!canAccessShop(scope, product.shopId)) redirect("/products");
 
   const images = Array.isArray(product.images)
     ? (product.images as { url: string }[]).map((i) => i.url)

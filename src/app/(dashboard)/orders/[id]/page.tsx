@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { hasPermission } from "@/lib/rbac";
+import { canAccessShop, resolveShopScope } from "@/lib/shop-assignment";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { updateOrderStatusAction } from "../actions";
@@ -33,7 +33,12 @@ export default async function OrderDetailPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isGlobal = hasPermission(session.user.permissions, "orders.read_all");
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
+  const isVendor = session.user.role === "SHOP_ADMIN" || session.user.role === "SHOP_MANAGER";
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
@@ -43,9 +48,11 @@ export default async function OrderDetailPage({
     },
   });
   if (!order) redirect("/orders");
-  if (!isGlobal && order.shopId !== session.user.shopId) redirect("/orders");
+  if (!canAccessShop(scope, order.shopId)) redirect("/orders");
 
-  const actions = isGlobal ? [] : (NEXT_ACTIONS[order.status] ?? []);
+  // Les transitions sont proposées aux vendeurs (workflow boutique) ; les superviseurs
+  // (KAM/admin) consultent sans changer le statut depuis cette page
+  const actions = isVendor ? (NEXT_ACTIONS[order.status] ?? []) : [];
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

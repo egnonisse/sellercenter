@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { hasPermission } from "@/lib/rbac";
+import { resolveShopScope, scopeFilter } from "@/lib/shop-assignment";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -33,11 +33,15 @@ export default async function OrdersPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const isGlobal = hasPermission(session.user.permissions, "orders.read_all");
-  const shopId = session.user.shopId;
+  const scope = await resolveShopScope({
+    id: session.user.id,
+    role: session.user.role,
+    shopId: session.user.shopId,
+  });
+  const isGlobal = scope.isGlobal;
 
   const orders = await prisma.order.findMany({
-    where: shopId ? { shopId } : undefined,
+    where: scopeFilter(scope),
     orderBy: { createdAt: "desc" },
     include: { shop: { select: { name: true } }, items: true },
     take: 200,
