@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createNotification } from "@/lib/notifications";
+import { getCommissionRate } from "@/lib/settlements";
 import type { OrderStatus } from "@/generated/prisma/enums";
 
 // Payload WooCommerce (order.created / order.updated)
@@ -84,7 +85,7 @@ export async function processWooOrder(payload: WooOrderPayload) {
       });
     }
 
-    // Items : recréation simple (idempotent)
+    // Items : recréation simple (idempotent) — taux de commission figé au moment de la vente
     await prisma.orderItem.deleteMany({ where: { orderId: order.id } });
     for (const item of items) {
       const product = await prisma.product.findFirst({ where: { wooId: item.product_id } });
@@ -97,6 +98,7 @@ export async function processWooOrder(payload: WooOrderPayload) {
           qty: item.quantity ?? 1,
           unitPrice: toDecimal(item.total) / (item.quantity ?? 1),
           total: toDecimal(item.total),
+          commissionRate: await getCommissionRate(product.categoryId),
         },
       });
     }

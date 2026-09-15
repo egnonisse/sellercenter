@@ -49,7 +49,8 @@ export async function generateSettlement(shopId: string, periodStart: Date, peri
   const lines = [];
 
   for (const item of items) {
-    const rate = await getCommissionRate(item.product.categoryId);
+    // Taux figé au moment de la vente (webhook) ; fallback pour les items antérieurs à cette feature
+    const rate = item.commissionRate ?? (await getCommissionRate(item.product.categoryId));
     const gross = Number(item.total);
     const comm = (gross * rate) / 100;
     grossSales += gross;
