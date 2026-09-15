@@ -115,14 +115,36 @@ model User {
   role         Role
   shopId       String?              // null pour SUPER_ADMIN
   shop         Shop?                @relation(fields: [shopId], references: [id])
-  status       String               @default("ACTIVE")
+  status       String               @default("ACTIVE") // ACTIVE | INVITED | SUSPENDED
   failedAttempts Int               @default(0) // Échecs de connexion consécutifs (rate limiting login)
   lockoutUntil DateTime?           // Verrouillage temporaire après trop d'échecs
+  // Invitation (création d'utilisateur par un admin / un vendeur)
+  inviteTokenHash  String?         // SHA-256 du token envoyé par email
+  inviteExpiresAt  DateTime?       // expiration du lien d'invitation
+  invitedByUserId  String?
+  invitedBy        User?           @relation("UserInvitedBy", fields: [invitedByUserId], references: [id])
+  invitedUsers     User[]          @relation("UserInvitedBy")
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   orderHistory OrderStatusHistory[]
   productHistory ProductHistory[]
   rateHistory CommissionRateHistory[]
+  auditLogs    UserAudit[]         @relation("UserAuditTarget")
+  auditActions UserAudit[]         @relation("UserAuditActor")
+}
+
+// Audit des opérations sur les utilisateurs (qui a créé / changé quel compte)
+model UserAudit {
+  id           String   @id @default(cuid())
+  targetUserId String
+  target       User     @relation("UserAuditTarget", fields: [targetUserId], references: [id])
+  actorUserId  String?
+  actor        User?    @relation("UserAuditActor", fields: [actorUserId], references: [id])
+  action       String // CREATED | INVITED | INVITE_RESENT | ROLE_CHANGED | STATUS_CHANGED | PASSWORD_SET
+  details      Json? // { before, after }
+  createdAt    DateTime @default(now())
+
+  @@index([targetUserId])
 }
 
 // ===================== Catalogue =====================
