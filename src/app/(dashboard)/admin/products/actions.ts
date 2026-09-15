@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermissionDb } from "@/lib/rbac";
+import { prisma } from "@/lib/prisma";
 import { approveProduct, rejectProduct, confirmProductDeletion, restoreProduct } from "@/lib/products";
 import { logProductHistory } from "@/lib/product-history";
 import { createNotification } from "@/lib/notifications";
@@ -25,6 +26,17 @@ export async function syncNowAction() {
 export async function approveProductAction(productId: string) {
   try {
     const user = await requirePermissionDb("products.qc");
+    // On ne publie pas les produits d'une boutique non validée (ou suspendue)
+    const target = await prisma.product.findUnique({
+      where: { id: productId },
+      select: { shop: { select: { status: true, name: true } } },
+    });
+    if (!target) return { error: "Produit introuvable." };
+    if (target.shop.status !== "ACTIVE") {
+      return {
+        error: `La boutique « ${target.shop.name} » n'est pas validée : approuvez le vendeur avant ses produits.`,
+      };
+    }
     const product = await approveProduct(productId);
     await logProductHistory({ productId, action: "APPROVED", to: "ACTIVE", actorUserId: user.id });
     await createNotification({

@@ -31,8 +31,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const unread = session.user.shopId ? await countUnreadNotifications(session.user.shopId) : 0;
 
   const adminItems = [
-    ...(canUsers ? [{ label: "Utilisateurs", href: "/admin/users" }] : []),
-    ...(canSellers ? [{ label: "Vendeurs", href: "/admin/sellers" }] : []),
+    // « Vendeurs » = modération métier (boutiques) · « Utilisateurs » = comptes de connexion
+    ...(canUsers ? [{ label: "Utilisateurs & accès", href: "/admin/users" }] : []),
+    ...(canSellers ? [{ label: "Vendeurs & candidatures", href: "/admin/sellers" }] : []),
     ...(canQc ? [{ label: "Produits à valider", href: "/admin/products" }] : []),
     ...(canSettings ? [{ label: "Réglages plateforme", href: "/admin/settings" }] : []),
     ...(canRoles ? [{ label: "Rôles & permissions", href: "/admin/roles" }] : []),

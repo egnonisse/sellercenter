@@ -48,9 +48,10 @@ export default async function AdminUsersPage({
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Utilisateurs</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Utilisateurs &amp; accès</h1>
         <p className="text-sm text-muted-foreground">
-          Créer des accès et attribuer des rôles. {users.length} utilisateur(s).
+          Comptes de connexion : email, rôle et statut. {users.length} utilisateur(s). La validation des
+          boutiques se fait dans « Vendeurs &amp; candidatures ».
         </p>
       </div>
 
@@ -115,7 +116,18 @@ export default async function AdminUsersPage({
                   )}
                 </TableCell>
                 <TableCell>{roleLabel(u.role)}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{u.shop?.name ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {u.shop ? (
+                    <span>
+                      {u.shop.name}
+                      <span className="ml-1 text-[10px]">
+                        {u.shop.status === "ACTIVE" ? "· active" : u.shop.status === "PENDING" ? "· en attente" : "· suspendue"}
+                      </span>
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </TableCell>
                 <TableCell>
                   <Badge variant={STATUS_VARIANT[u.status] ?? "secondary"}>
                     {userStatusLabel(u.status)}
@@ -138,7 +150,18 @@ export default async function AdminUsersPage({
                           u.id,
                           u.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
                         )}
+                        className="flex items-center gap-2"
                       >
+                        {/* Bloquer un compte ne coupe pas la boutique : choix explicite de l'admin */}
+                        {u.status === "ACTIVE" && u.shop?.status === "ACTIVE" && (
+                          <label
+                            className="flex cursor-pointer items-center gap-1 text-[11px] text-muted-foreground"
+                            title="La boutique restera en ligne si cette case n'est pas cochée"
+                          >
+                            <input type="checkbox" name="suspendShop" className="size-3" />
+                            Suspendre aussi « {u.shop.name} »
+                          </label>
+                        )}
                         <Button type="submit" size="sm" variant="outline">
                           {u.status === "ACTIVE" ? "Désactiver" : "Activer"}
                         </Button>

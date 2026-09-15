@@ -44,10 +44,11 @@ export default async function AdminSellersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Vendeurs</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Vendeurs &amp; candidatures</h1>
         <p className="text-sm text-muted-foreground">
-          {pending.length} inscription(s) en attente de validation ·{" "}
-          {sellers.length} vendeur(s) au total
+          {pending.length} inscription(s) en attente de validation · {sellers.length} vendeur(s) au total
+          — approuver ou suspendre ici agit sur la boutique <em>et</em> sur les comptes de connexion du
+          vendeur.
         </p>
       </div>
 

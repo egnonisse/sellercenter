@@ -214,21 +214,40 @@ export async function setUserRole(userId: string, role: Role, actorUserId: strin
   });
 }
 
-export async function setUserStatus(userId: string, status: string, actorUserId: string) {
+export async function setUserStatus(
+  userId: string,
+  status: string,
+  actorUserId: string,
+  opts?: { alsoSuspendShop?: boolean },
+) {
   requireActor(actorUserId);
   if (!["ACTIVE", "SUSPENDED"].includes(status)) throw new Error("STATUT_INVALIDE");
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { shop: { select: { name: true, status: true } } },
+  });
   if (!user) throw new Error("UTILISATEUR_INTROUVABLE");
   if (user.id === actorUserId) throw new Error("AUTO_MODIFICATION_INTERDITE");
   if (user.status === "INVITED") throw new Error("INVITATION_EN_ATTENTE");
 
-  await prisma.user.update({ where: { id: userId }, data: { status } });
+  // Bloquer un compte ne coupe PAS sa boutique par défaut : c'est un choix explicite de
+  // l'admin (avertissement dans /admin/users), sinon la vitrine continuerait de vendre.
+  const suspendShop =
+    status === "SUSPENDED" && opts?.alsoSuspendShop === true && Boolean(user.shopId) && user.shop?.status === "ACTIVE";
+
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: userId }, data: { status } }),
+    ...(suspendShop && user.shopId
+      ? [prisma.shop.update({ where: { id: user.shopId }, data: { status: "SUSPENDED" } })]
+      : []),
+  ]);
   await logAudit({
     targetUserId: userId,
     actorUserId,
     action: "STATUS_CHANGED",
-    details: { before: user.status, after: status },
+    details: { before: user.status, after: status, shopSuspended: suspendShop },
   });
+  return { shopSuspended: suspendShop };
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +268,7 @@ export async function listUsers(filters: {
       ...(filters.q ? { email: { contains: filters.q.trim(), mode: "insensitive" as const } } : {}),
     },
     orderBy: { createdAt: "desc" },
-    include: { shop: { select: { name: true } } },
+    include: { shop: { select: { name: true, status: true } } },
     take: 200,
   });
 }

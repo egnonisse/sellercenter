@@ -96,11 +96,18 @@ export async function setUserRoleAction(
   }
 }
 
-export async function setUserStatusAction(userId: string, status: string): Promise<void> {
+export async function setUserStatusAction(
+  userId: string,
+  status: string,
+  formData?: FormData,
+): Promise<void> {
   try {
     const actor = await requirePermissionDb("users.manage");
-    await setUserStatus(userId, status, actor.id);
+    // Case « suspendre aussi la boutique » (affichée pour un propriétaire de boutique)
+    const alsoSuspendShop = formData?.get("suspendShop") === "on";
+    await setUserStatus(userId, status, actor.id, { alsoSuspendShop });
     revalidatePath("/admin/users");
+    revalidatePath("/admin/sellers");
   } catch (e) {
     console.error("setUserStatusAction:", e);
   }

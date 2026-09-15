@@ -54,12 +54,23 @@ function toWooPayload(product: {
 export async function syncProduct(productId: string) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    include: { category: true },
+    include: { category: true, shop: { select: { status: true } } },
   });
   if (!product) return { synced: false, error: "Produit introuvable" };
   // Seuls les produits actifs ou retirés partent en sync (draft/QC restent en interne)
   if (product.status !== "ACTIVE" && product.status !== "DELISTED") {
     return { synced: false, error: "Statut non synchronisable" };
+  }
+  // RIEN n'est publié tant que la boutique n'est pas validée (ni si elle est suspendue) :
+  // le vendeur peut préparer son catalogue, la vitrine reste fermée pour lui.
+  if (product.shop.status !== "ACTIVE") {
+    return {
+      synced: false,
+      error:
+        product.shop.status === "PENDING"
+          ? "Boutique en attente de validation : publication impossible"
+          : "Boutique suspendue : publication impossible",
+    };
   }
 
   const payload = toWooPayload(product);
