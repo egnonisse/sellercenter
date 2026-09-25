@@ -187,5 +187,5 @@ Développé pour **Zariamall** (Côte d'Ivoire), en production. Le projet s'int�
 
 ---
 
-**Ouattara Anzoumana** — Abidjan, Côte d'Ivoire
+**Egnonisse Léonard** — Abidjan, Côte d'Ivoire
 [github.com/egnonisse](https://github.com/egnonisse) · [softhubapp.com](https://softhubapp.com)
