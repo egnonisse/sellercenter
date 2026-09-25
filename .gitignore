@@ -53,3 +53,4 @@ next-env.d.ts
 .windsurf/
 .hermes/
 skills-lock.json
+.hermes-tmp*
